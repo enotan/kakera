@@ -1,10 +1,7 @@
 use crate::models::VisualNovel;
 
-use std::{
-    fs,
-    io,
-};
 use std::path::PathBuf;
+use std::{fs, io};
 
 /// Returns the path where Kakera stores the JSON file
 pub fn library_file_path() -> Result<PathBuf, io::Error> {
