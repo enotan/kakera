@@ -1,6 +1,7 @@
 mod models;
 mod storage;
 mod views;
+mod vndb;
 
 use models::VisualNovel;
 use storage::{
@@ -10,6 +11,7 @@ use storage::{
 use views::{
     AddVnForm,
     LibraryView,
+    NewVN,
 };
 
 use dioxus::prelude::*;
@@ -41,14 +43,14 @@ fn App() -> Element {
             p { "Loaded VNs: {library_count}" }
 
             AddVnForm {
-                on_add: move |title| {
+                on_add: move |new_vn: NewVN| {
                     let next_id = visual_novels.read().len() as u64 + 1;
 
                     let new_vn = VisualNovel {
                         id: next_id,
-                        title,
-                        cover_url: None,
-                        description: None,
+                        title: new_vn.title,
+                        cover_url: new_vn.cover_url,
+                        description: new_vn.description,
                         notes: String::new(),
                         routes: Vec::new(),
                         play_sessions: Vec::new(),
