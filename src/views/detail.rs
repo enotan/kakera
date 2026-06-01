@@ -1,5 +1,6 @@
 use crate::models::{VisualNovel, LaunchMode};
-use dioxus::{desktop::tao::keyboard::Key::New, prelude::*};
+use dioxus::prelude::*;
+use rfd::FileDialog;
 
 ///displays details for one selected vn
 #[component]
@@ -38,6 +39,7 @@ pub fn DetailView(
 
             h3 { "Launch" }
 
+            //exec path input
             label {
                 "Executable path"
 
@@ -53,6 +55,25 @@ pub fn DetailView(
                 }
             }
 
+            //file picker
+            button {
+                onclick: move |_| {
+                    let picked_file = FileDialog::new()
+                        .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
+                        .pick_file();
+
+                    if let Some(path) = picked_file {
+                        on_executable_path_change.call((
+                            visual_novel.id,
+                            path.to_string_lossy().to_string(),
+                        ));
+                    }
+                },
+
+                "Choose executable"
+            }
+
+            //launch mode selector
             label {
                 "Launch mode"
 

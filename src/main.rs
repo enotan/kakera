@@ -4,7 +4,6 @@ mod views;
 mod vndb;
 mod launcher;
 
-use dioxus::desktop::tao::keyboard::Key::PageDown;
 use models::{VisualNovel, StoryRoute, LaunchMode, PlaySession};
 use storage::{load_library, save_library, add_play_session_to_library};
 use views::{AddVnForm, DetailView, LibraryView, NewVN};
