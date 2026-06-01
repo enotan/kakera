@@ -3,7 +3,10 @@ use dioxus::prelude::*;
 
 //displays the vn library as a simple list of cards
 #[component]
-pub fn LibraryView(visual_novels: Vec<VisualNovel>) -> Element {
+pub fn LibraryView(
+    visual_novels: Vec<VisualNovel>,
+    on_select: EventHandler<u64>,
+) -> Element {
     let library_is_empty = visual_novels.is_empty();
     rsx! {
         section {
@@ -15,6 +18,11 @@ pub fn LibraryView(visual_novels: Vec<VisualNovel>) -> Element {
                 div {
                     for visual_novel in visual_novels {
                         article {
+
+                            onclick: move |_| {
+                                on_select.call(visual_novel.id);
+                            },
+
                             h3 { "{visual_novel.title}" }
 
                             if let Some(cover_url) = visual_novel.cover_url.clone() {
