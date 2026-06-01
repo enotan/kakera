@@ -68,3 +68,21 @@ pub fn save_library(library: Vec<VisualNovel>) -> Result<(), io::Error> {
 
     Ok(())
 }
+
+///adds one play session to the save file
+pub fn add_play_session_to_library(
+    visual_novel_id: u64,
+    play_session: crate::models::PlaySession,
+) -> Result<(), io::Error> {
+    let mut library = load_library()?;
+
+    for visual_novel in library.iter_mut() {
+        if visual_novel.id == visual_novel_id {
+            visual_novel.play_sessions.push(play_session.clone());
+        }
+    }
+
+    save_library(library)?;
+
+    Ok(())
+}

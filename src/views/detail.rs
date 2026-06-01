@@ -1,4 +1,4 @@
-use crate::models::VisualNovel;
+use crate::models::{VisualNovel, LaunchMode};
 use dioxus::{desktop::tao::keyboard::Key::New, prelude::*};
 
 ///displays details for one selected vn
@@ -8,9 +8,18 @@ pub fn DetailView(
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
+    on_executable_path_change: EventHandler<(u64, String)>,
+    on_launch: EventHandler<u64>,
+    on_launch_mode_change: EventHandler<(u64, LaunchMode)>,
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
+
+    let executable_path_text = match visual_novel.executable_path.clone() {
+        Some(path) => path,
+        None => String::new(),
+    };
+
     rsx! {
         section {
             h2 { "{visual_novel.title}" }
@@ -25,6 +34,78 @@ pub fn DetailView(
 
             if let Some(description) = visual_novel.description.clone() {
                 p { "{description}" }
+            }
+
+            h3 { "Launch" }
+
+            label {
+                "Executable path"
+
+                input {
+                    value: "{executable_path_text}",
+
+                    oninput: move |event| {
+                        on_executable_path_change.call((
+                            visual_novel.id,
+                            event.value(),
+                        ));
+                    }
+                }
+            }
+
+            label {
+                "Launch mode"
+
+                select {
+                    value: match visual_novel.launch_mode {
+                        LaunchMode::Native => "native",
+                        LaunchMode::Wine => "wine",
+                    },
+
+                    onchange: move |event| {
+                        let launch_mode = match event.value().as_str() {
+                            "wine" => LaunchMode::Wine,
+                            _ => LaunchMode::Native,
+                        };
+
+                        on_launch_mode_change.call((
+                            visual_novel.id,
+                            launch_mode,
+                        ))
+                    },
+
+                    option {
+                        value: "native",
+                        "Native"
+                    }
+
+                    option {
+                        value: "wine",
+                        "Wine"
+                    }
+                }
+            }
+
+            button {
+                disabled: visual_novel.executable_path.is_none(),
+
+                onclick: move |_| {
+                    on_launch.call(visual_novel.id);
+                },
+
+                "Launch"
+            }
+
+            h3 { "Play sessions" }
+            p { "Sessions recorded: {visual_novel.play_sessions.len()}" }
+
+            ul {
+                for session in visual_novel.play_sessions.clone() {
+                    li {
+                        
+                        "{format_started_at(session.started_at.clone())} - {session.duration_seconds} seconds"
+                    }
+                }
             }
 
             h3 { "Notes" }
@@ -88,4 +169,13 @@ pub fn DetailView(
             }
         }
     }
+}
+
+fn format_started_at(started_at: String) -> String {
+    let parsed_time = match chrono::DateTime::parse_from_rfc3339(&started_at) {
+        Ok(time) => time,
+        Err(_error) => return started_at,
+    };
+    
+    parsed_time.format("%Y-%m-%d %H:%M:%S").to_string()
 }

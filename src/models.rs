@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialEq;
 
+///the way kakera should launch a vn
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LaunchMode {
+    Native,
+    Wine,
+}
+
 ///A visual novel stored in the library
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VisualNovel {
@@ -8,9 +15,22 @@ pub struct VisualNovel {
     pub title: String,
     pub cover_url: Option<String>,
     pub description: Option<String>,
+
+    #[serde(default)]
+    pub executable_path: Option<String>,
+
+    #[serde(default)]
+    pub launch_mode: LaunchMode,
+
     pub notes: String,
     pub routes: Vec<StoryRoute>,
     pub play_sessions: Vec<PlaySession>,
+}
+
+impl Default for LaunchMode {
+    fn default() -> Self {
+        LaunchMode::Native
+    }
 }
 
 ///A vn route
