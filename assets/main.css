@@ -381,6 +381,42 @@ select option {
     font-weight: 700;
 }
 
+.detail-column {
+    width: var(--detail-width);
+    max-width: var(--detail-width);
+}
+
+.detail-panel,
+.detail-panel *,
+.empty-detail-panel,
+.empty-detail-panel * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.detail-panel input,
+.detail-panel select,
+.detail-panel textarea,
+.detail-panel button {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.detail-panel h2,
+.detail-description,
+.detail-panel l1,
+.detail-panel labe,
+.vn-card h3 {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.detail-description {
+    max-height: 180px;
+    overflow-y: auto;
+    color: var(--text);
+}
+
 @media (max-width: 1100px) {
     .app-layout {
         grid-template-columns: 1fr;

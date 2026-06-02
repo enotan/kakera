@@ -35,7 +35,10 @@ pub fn DetailView(
             }
 
             if let Some(description) = visual_novel.description.clone() {
-                p { "{description}" }
+                p {
+                    class: "detail-description", 
+                    "{description}"
+                }
             }
 
             h3 { "Launch" }
@@ -98,7 +101,7 @@ pub fn DetailView(
 
             button {
                 class: "launch-button",
-                
+
                 disabled: visual_novel.executable_path.is_none(),
 
                 onclick: move |_| {
