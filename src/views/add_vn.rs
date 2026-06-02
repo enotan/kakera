@@ -1,8 +1,5 @@
+use crate::vndb::{VndbSearchResult, search_vns};
 use dioxus::prelude::*;
-use crate::vndb::{
-    search_vns,
-    VndbSearchResult,
-};
 
 ///the data sent back to the app when adding a vn from vndb
 #[derive(Debug, Clone, PartialEq)]
@@ -24,7 +21,8 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
     let results_to_show = search_results.read().clone();
 
     rsx! {
-        section {
+        section { class: "add-vn-panel",
+
             h2 { "Add VN" }
 
             label {
@@ -35,7 +33,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
 
                     oninput: move |event| {
                         title.set(event.value());
-                    }
+                    },
                 }
             }
 
@@ -44,11 +42,12 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                     let typed_title = title.read().clone();
 
                     if !typed_title.is_empty() {
-                        on_add.call(NewVN {
-                            title: typed_title,
-                            cover_url: None,
-                            description: None,
-                        });
+                        on_add
+                            .call(NewVN {
+                                title: typed_title,
+                                cover_url: None,
+                                description: None,
+                            });
                         title.set(String::new());
                     }
                 },
@@ -95,14 +94,12 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
 
                         button {
                             onclick: move |_| {
-                                on_add.call(NewVN {
-                                    title: result.title.clone(),
-                                    cover_url: result
-                                        .image
-                                        .clone()
-                                        .and_then(|image| image.url),
-                                    description: result.description.clone(),
-                                });
+                                on_add
+                                    .call(NewVN {
+                                        title: result.title.clone(),
+                                        cover_url: result.image.clone().and_then(|image| image.url),
+                                        description: result.description.clone(),
+                                    });
                             },
 
                             "Add this result"
@@ -113,4 +110,3 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
         }
     }
 }
-

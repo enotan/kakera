@@ -16,6 +16,6 @@ pub fn launch_executable(
         LaunchMode::Native => Command::new(path).spawn()?,
         LaunchMode::Wine => Command::new("wine").arg(path).spawn()?,
     };
-    
+
     Ok(child)
 }

@@ -1,7 +1,4 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 ///vn result returned from VNDB
@@ -36,9 +33,7 @@ struct VndbSearchRequest {
 }
 
 ///searches vndb for vns matching the query
-pub async fn search_vns(
-    query: String,
-) -> Result<Vec<VndbSearchResult>, reqwest::Error> {
+pub async fn search_vns(query: String) -> Result<Vec<VndbSearchResult>, reqwest::Error> {
     let client = reqwest::Client::new();
 
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -60,4 +55,3 @@ pub async fn search_vns(
 
     Ok(response.results)
 }
-

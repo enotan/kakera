@@ -1,4 +1,4 @@
-use crate::models::{VisualNovel, LaunchMode};
+use crate::models::{LaunchMode, VisualNovel};
 use dioxus::prelude::*;
 use rfd::FileDialog;
 
@@ -22,14 +22,15 @@ pub fn DetailView(
     };
 
     rsx! {
-        section {
+        section { class: "detail-panel",
+
             h2 { "{visual_novel.title}" }
 
             if let Some(cover_url) = visual_novel.cover_url.clone() {
                 img {
+                    class: "detail-cover",
                     src: "{cover_url}",
                     alt: "Cover art for {visual_novel.title}",
-                    width: "180"
                 }
             }
 
@@ -47,26 +48,23 @@ pub fn DetailView(
                     value: "{executable_path_text}",
 
                     oninput: move |event| {
-                        on_executable_path_change.call((
-                            visual_novel.id,
-                            event.value(),
-                        ));
-                    }
+                        on_executable_path_change.call((visual_novel.id, event.value()));
+                    },
                 }
             }
 
             //file picker
             button {
+                class: "fp-button",
+                
                 onclick: move |_| {
                     let picked_file = FileDialog::new()
                         .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
                         .pick_file();
 
                     if let Some(path) = picked_file {
-                        on_executable_path_change.call((
-                            visual_novel.id,
-                            path.to_string_lossy().to_string(),
-                        ));
+                        on_executable_path_change
+                            .call((visual_novel.id, path.to_string_lossy().to_string()));
                     }
                 },
 
@@ -75,6 +73,7 @@ pub fn DetailView(
 
             //launch mode selector
             label {
+                class: "launch-selector",
                 "Launch mode"
 
                 select {
@@ -88,26 +87,18 @@ pub fn DetailView(
                             "wine" => LaunchMode::Wine,
                             _ => LaunchMode::Native,
                         };
-
-                        on_launch_mode_change.call((
-                            visual_novel.id,
-                            launch_mode,
-                        ))
+                        on_launch_mode_change.call((visual_novel.id, launch_mode))
                     },
 
-                    option {
-                        value: "native",
-                        "Native"
-                    }
+                    option { value: "native", "Native" }
 
-                    option {
-                        value: "wine",
-                        "Wine"
-                    }
+                    option { value: "wine", "Wine" }
                 }
             }
 
             button {
+                class: "launch-button",
+                
                 disabled: visual_novel.executable_path.is_none(),
 
                 onclick: move |_| {
@@ -123,7 +114,7 @@ pub fn DetailView(
             ul {
                 for session in visual_novel.play_sessions.clone() {
                     li {
-                        
+
                         "{format_started_at(session.started_at.clone())} - {session.duration_seconds} seconds"
                     }
                 }
@@ -136,7 +127,7 @@ pub fn DetailView(
 
                 oninput: move |event| {
                     on_notes_change.call((visual_novel.id, event.value()));
-                }
+                },
             }
 
             h3 { "Routes" }
@@ -150,7 +141,7 @@ pub fn DetailView(
 
                     oninput: move |event| {
                         new_route_name.set(event.value());
-                    }
+                    },
                 }
             }
 
@@ -176,11 +167,8 @@ pub fn DetailView(
                                 checked: route.completed,
 
                                 onchange: move |_| {
-                                    on_route_toggle.call((
-                                        visual_novel.id,
-                                        route.name.clone(),
-                                    ));
-                                }
+                                    on_route_toggle.call((visual_novel.id, route.name.clone()));
+                                },
                             }
 
                             "{route.name}"
@@ -197,6 +185,6 @@ fn format_started_at(started_at: String) -> String {
         Ok(time) => time,
         Err(_error) => return started_at,
     };
-    
+
     parsed_time.format("%Y-%m-%d %H:%M:%S").to_string()
 }
