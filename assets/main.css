@@ -417,6 +417,17 @@ select option {
     color: var(--text);
 }
 
+.delete-button {
+    border-color: rgba(255, 107, 138, 0.45);
+    color: var(--danger);
+    background: rgba(255, 107, 138, 0.08);
+}
+
+.delete-button:hover {
+    border-color: var(--danger);
+    background: rgba(255, 107, 138, 0.14);
+}
+
 @media (max-width: 1100px) {
     .app-layout {
         grid-template-columns: 1fr;

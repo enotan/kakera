@@ -12,6 +12,7 @@ pub fn DetailView(
     on_executable_path_change: EventHandler<(u64, String)>,
     on_launch: EventHandler<u64>,
     on_launch_mode_change: EventHandler<(u64, LaunchMode)>,
+    on_delete: EventHandler<u64>,
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
@@ -178,6 +179,16 @@ pub fn DetailView(
                         }
                     }
                 }
+            }
+
+            button {
+                class: "delete-button",
+
+                onclick: move |_| {
+                    on_delete.call(visual_novel.id);
+                },
+
+                "Delete VN"
             }
         }
     }

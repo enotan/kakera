@@ -105,7 +105,13 @@ fn App() -> Element {
                         if *show_add_form.read() {
                             AddVnForm {
                                 on_add: move |new_vn: NewVN| {
-                                    let next_id = visual_novels.read().len() as u64 + 1;
+                                    let next_id = visual_novels
+                                        .read()
+                                        .iter()
+                                        .map(|visual_novel| visual_novel.id)
+                                        .max()
+                                        .unwrap_or(0)
+                                        + 1;
 
                                     let new_vn = VisualNovel {
                                         id: next_id,
@@ -294,6 +300,20 @@ fn App() -> Element {
 
                                     if let Err(error) = save_result {
                                         println!("Could not save launch mode: {error}");
+                                    }
+                                },
+
+                                on_delete: move |id| {
+                                    visual_novels.write().retain(|visual_novel| {
+                                        visual_novel.id != id
+                                    });
+
+                                    selected_vn_id.set(None);
+
+                                    let save_result = save_library(visual_novels.read().clone());
+
+                                    if let Err(error) = save_result {
+                                        println!("Could not delete VN: {error}");
                                     }
                                 },
                             }
