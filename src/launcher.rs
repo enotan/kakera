@@ -8,13 +8,32 @@ use crate::models::LaunchMode;
 pub fn launch_executable(
     executable_path: String,
     launch_mode: LaunchMode,
+    wine_prefix: Option<String>,
+    wine_locale: Option<String>,
+    launch_arguments: String,
 ) -> Result<Child, io::Error> {
     let path = PathBuf::from(executable_path);
 
     //native runs the app as normal, and wine through wine ofc
     let child: Child = match launch_mode {
         LaunchMode::Native => Command::new(path).spawn()?,
-        LaunchMode::Wine => Command::new("wine").arg(path).spawn()?,
+        LaunchMode::Wine => {
+            let mut command = Command::new("wine");
+
+            if let Some(prefix) = wine_prefix {
+                command.env("WINEPREFIX", prefix);
+            }
+
+            if let Some(locale) = wine_locale {
+                command.env("LANG", locale);
+            }
+
+            command.arg(path);
+
+            command.args(launch_arguments.split_whitespace());
+
+            command.spawn()?
+        },
     };
 
     Ok(child)

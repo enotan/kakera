@@ -428,6 +428,40 @@ select option {
     background: rgba(255, 107, 138, 0.14);
 }
 
+.route-list {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.route-item {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text);
+}
+
+.route-checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.route-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.wine-settings {
+    display: grid;
+    gap: var(--space-3);
+    border: 1px solid var (--line);
+    border-radius: var(--radius-md);
+    background: rgba(229, 138, 182, 0.06);
+    padding: var(--space-3);
+}
+
 @media (max-width: 1100px) {
     .app-layout {
         grid-template-columns: 1fr;

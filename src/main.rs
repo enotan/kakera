@@ -120,6 +120,9 @@ fn App() -> Element {
                                         description: new_vn.description,
                                         executable_path: None,
                                         launch_mode: LaunchMode::default(),
+                                        wine_prefix: None,
+                                        wine_locale: None,
+                                        launch_arguments: String::new(),
                                         notes: String::new(),
                                         routes: Vec::new(),
                                         play_sessions: Vec::new(),
@@ -228,7 +231,13 @@ fn App() -> Element {
                                         Some(visual_novel) => {
                                             match visual_novel.executable_path {
                                                 Some(path) => {
-                                                    match launch_executable(path, visual_novel.launch_mode) {
+                                                    match launch_executable(
+                                                        path, 
+                                                        visual_novel.launch_mode,
+                                                        visual_novel.wine_prefix,
+                                                        visual_novel.wine_locale,
+                                                        visual_novel.launch_arguments,
+                                                    ) {
                                                         Ok(mut child) => {
                                                             let started_at = Utc::now().to_rfc3339();
                                                             let started_timer = Instant::now();
@@ -300,6 +309,60 @@ fn App() -> Element {
 
                                     if let Err(error) = save_result {
                                         println!("Could not save launch mode: {error}");
+                                    }
+                                },
+
+                                on_wine_prefix_change: move |(id, prefix): (u64, String)| {
+                                    let wine_prefix = if prefix.is_empty() {
+                                        None
+                                    } else {
+                                        Some(prefix)
+                                    };
+
+                                    for visual_novel in visual_novels.write().iter_mut() {
+                                        if visual_novel.id == id {
+                                            visual_novel.wine_prefix = wine_prefix.clone();
+                                        }
+                                    }
+
+                                    let save_result = save_library(visual_novels.read().clone());
+
+                                    if let Err(error) = save_result {
+                                        println!("Could not save Wine prefix: {error}");
+                                    }
+                                },
+
+                                on_wine_locale_change: move |(id, locale): (u64, String)| {
+                                    let wine_locale = if locale.is_empty() {
+                                        None
+                                    } else {
+                                        Some(locale)
+                                    };
+
+                                    for visual_novel in visual_novels.write().iter_mut() {
+                                        if visual_novel.id == id {
+                                            visual_novel.wine_locale = wine_locale.clone();
+                                        }
+                                    }
+
+                                    let save_result = save_library(visual_novels.read().clone());
+
+                                    if let Err(error) = save_result {
+                                        println!("Could not save Wine locale: {error}");
+                                    }
+                                },
+
+                                on_launch_arguments_change: move |(id, arguments): (u64, String)| {
+                                    for visual_novel in visual_novels.write().iter_mut() {
+                                        if visual_novel.id == id {
+                                            visual_novel.launch_arguments = arguments.clone();
+                                        }
+                                    }
+
+                                    let save_result = save_library(visual_novels.read().clone());
+
+                                    if let Err(error) = save_result {
+                                        println!("Could not save launch argumnets: {error}");
                                     }
                                 },
 

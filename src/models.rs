@@ -22,6 +22,15 @@ pub struct VisualNovel {
     #[serde(default)]
     pub launch_mode: LaunchMode,
 
+    #[serde(default)]
+    pub wine_prefix: Option<String>,
+
+    #[serde(default)]
+    pub wine_locale: Option<String>,
+
+    #[serde(default)]
+    pub launch_arguments: String,
+
     pub notes: String,
     pub routes: Vec<StoryRoute>,
     pub play_sessions: Vec<PlaySession>,
