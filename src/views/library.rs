@@ -27,10 +27,10 @@ pub fn LibraryView(visual_novels: Vec<VisualNovel>, on_select: EventHandler<u64>
                             div {
                                 class: "vn-cover-frame",
 
-                                if let Some(cover_url) = visual_novel.cover_url.clone() {
+                                if let Some(cover_src) = cover_source(visual_novel.clone()) {
                                     img {
                                         class: "vn-cover",
-                                        src: "{cover_url}",
+                                        src: "{cover_src}",
                                         alt: "Cover art for {visual_novel.title}",
                                     }
                                 } else {
@@ -47,5 +47,14 @@ pub fn LibraryView(visual_novels: Vec<VisualNovel>, on_select: EventHandler<u64>
                 }
             }
         }
+    }
+}
+
+
+///if cover is cached, uses cached image, if not tries vndb
+pub fn cover_source(visual_novel: VisualNovel) -> Option<String> {
+    match visual_novel.cover_path {
+        Some(path) => Some(path),
+        None => visual_novel.cover_url,
     }
 }

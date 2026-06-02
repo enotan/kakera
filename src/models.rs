@@ -17,6 +17,9 @@ pub struct VisualNovel {
     pub description: Option<String>,
 
     #[serde(default)]
+    pub cover_path: Option<String>,
+
+    #[serde(default)]
     pub executable_path: Option<String>,
 
     #[serde(default)]

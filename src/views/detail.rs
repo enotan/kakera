@@ -1,4 +1,5 @@
 use crate::models::{LaunchMode, VisualNovel};
+use crate::views::library::cover_source;
 use dioxus::prelude::*;
 use rfd::FileDialog;
 
@@ -47,10 +48,10 @@ pub fn DetailView(
 
             h2 { "{visual_novel.title}" }
 
-            if let Some(cover_url) = visual_novel.cover_url.clone() {
+            if let Some(cover_src) = cover_source(visual_novel.clone()) {
                 img {
                     class: "detail-cover",
-                    src: "{cover_url}",
+                    src: "{cover_src}",
                     alt: "Cover art for {visual_novel.title}",
                 }
             }
