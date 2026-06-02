@@ -232,7 +232,7 @@ fn App() -> Element {
                                             match visual_novel.executable_path {
                                                 Some(path) => {
                                                     match launch_executable(
-                                                        path, 
+                                                        path,
                                                         visual_novel.launch_mode,
                                                         visual_novel.wine_prefix,
                                                         visual_novel.wine_locale,
@@ -279,7 +279,7 @@ fn App() -> Element {
                                                                         println!("Could not monitor VN process: {error}");
                                                                     }
                                                                 }
-                                                            
+
                                                             });
                                                         }
                                                         Err(error) => {

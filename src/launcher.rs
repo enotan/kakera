@@ -33,7 +33,7 @@ pub fn launch_executable(
             command.args(launch_arguments.split_whitespace());
 
             command.spawn()?
-        },
+        }
     };
 
     Ok(child)

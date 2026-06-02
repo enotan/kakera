@@ -28,7 +28,19 @@ pub fn DetailView(
     let wine_prefix_text = visual_novel.wine_prefix.clone().unwrap_or_default();
     let wine_locale_text = visual_novel.wine_locale.clone().unwrap_or_default();
 
-    let show_wine_settings = cfg!(target_os = "linux") && visual_novel.launch_mode == LaunchMode::Wine;
+    let show_wine_settings =
+        cfg!(target_os = "linux") && visual_novel.launch_mode == LaunchMode::Wine;
+
+    let mut wine_prefix_draft = use_signal(|| wine_prefix_text.clone());
+    let mut wine_locale_draft = use_signal(|| wine_locale_text.clone());
+    let mut launch_arguments_draft = use_signal(|| visual_novel.launch_arguments.clone());
+
+    let wine_prefix_value = wine_prefix_draft.read().clone();
+    let wine_locale_value = wine_locale_draft.read().clone();
+    let launch_arguments_value = launch_arguments_draft.read().clone();
+
+    let mut notes_draft = use_signal(|| visual_novel.notes.clone());
+    let notes_value = notes_draft.read().clone();
 
     rsx! {
         section { class: "detail-panel",
@@ -45,7 +57,7 @@ pub fn DetailView(
 
             if let Some(description) = visual_novel.description.clone() {
                 p {
-                    class: "detail-description", 
+                    class: "detail-description",
                     "{description}"
                 }
             }
@@ -68,7 +80,7 @@ pub fn DetailView(
             //file picker
             button {
                 class: "fp-button",
-                
+
                 onclick: move |_| {
                     let picked_file = FileDialog::new()
                         .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
@@ -108,6 +120,7 @@ pub fn DetailView(
                 }
             }
 
+            //wine settings area
             if show_wine_settings {
                 div {
                     class: "wine-settings",
@@ -118,16 +131,20 @@ pub fn DetailView(
                         "Wine prefix"
 
                         input {
-                            value: "{wine_prefix_text}",
+                            value: "{wine_prefix_value}",
 
                             oninput: move |event| {
+                                wine_prefix_draft.set(event.value());
+                            },
+
+                            onblur: move |_| {
                                 on_wine_prefix_change.call((
                                     visual_novel.id,
-                                    event.value(),
+                                    wine_prefix_draft.read().clone(),
                                 ));
                             },
                         }
-                    } 
+                    }
 
                     button {
                         class: "fp-button",
@@ -151,12 +168,16 @@ pub fn DetailView(
 
                         input {
                             placeholder: "ja_JP.UTF-8",
-                            value: "{wine_locale_text}",
+                            value: "{wine_locale_value}",
 
                             oninput: move |event| {
+                                wine_locale_draft.set(event.value());
+                            },
+
+                            onblur: move |_| {
                                 on_wine_locale_change.call((
                                     visual_novel.id,
-                                    event.value(),
+                                    wine_locale_draft.read().clone()
                                 ));
                             },
                         }
@@ -167,12 +188,16 @@ pub fn DetailView(
 
                         input {
                             placeholder: "--some-flag",
-                            value: "{visual_novel.launch_arguments}",
+                            value: "{launch_arguments_value}",
 
                             oninput: move |event| {
+                                launch_arguments_draft.set(event.value());
+                            },
+
+                            onblur: move |_| {
                                 on_launch_arguments_change.call((
                                     visual_novel.id,
-                                    event.value(),
+                                    launch_arguments_draft.read().clone(),
                                 ));
                             },
                         }
@@ -180,6 +205,7 @@ pub fn DetailView(
                 }
             }
 
+            //launch button
             button {
                 class: "launch-button",
 
@@ -192,6 +218,7 @@ pub fn DetailView(
                 "Launch"
             }
 
+            //play sessions
             h3 { "Play sessions" }
             p { "Sessions recorded: {visual_novel.play_sessions.len()}" }
 
@@ -204,13 +231,21 @@ pub fn DetailView(
                 }
             }
 
+            //notes
             h3 { "Notes" }
 
             textarea {
-                value: "{visual_novel.notes}",
+                value: "{notes_value}",
 
                 oninput: move |event| {
-                    on_notes_change.call((visual_novel.id, event.value()));
+                    notes_draft.set(event.value());
+                },
+
+                onblur: move |_| {
+                    on_notes_change.call((
+                        visual_novel.id,
+                        notes_draft.read().clone(),
+                    ));
                 },
             }
 
@@ -258,7 +293,7 @@ pub fn DetailView(
                                 on_route_toggle.call((visual_novel.id, route.name.clone()));
                             },
                         }
-                        
+
                         span {
                             class: "route-name",
                             "{route.name}"
