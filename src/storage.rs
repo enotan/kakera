@@ -37,7 +37,7 @@ pub fn load_library() -> Result<Vec<VisualNovel>, io::Error> {
     };
 
     let library = match serde_json::from_str::<Vec<VisualNovel>>(&json_text) {
-        Ok(visual_novels) => visual_novels,
+        Ok(vns) => vns,
         Err(error) => {
             return Err(io::Error::new(io::ErrorKind::InvalidData, error));
         }
@@ -71,14 +71,14 @@ pub fn save_library(library: Vec<VisualNovel>) -> Result<(), io::Error> {
 
 ///adds one play session to the save file
 pub fn add_play_session_to_library(
-    visual_novel_id: u64,
+    vn_id: u64,
     play_session: crate::models::PlaySession,
 ) -> Result<(), io::Error> {
     let mut library = load_library()?;
 
-    for visual_novel in library.iter_mut() {
-        if visual_novel.id == visual_novel_id {
-            visual_novel.play_sessions.push(play_session.clone());
+    for vn in library.iter_mut() {
+        if vn.id == vn_id {
+            vn.play_sessions.push(play_session.clone());
         }
     }
 

@@ -1,15 +1,15 @@
+mod covers;
 mod launcher;
 mod models;
 mod storage;
 mod views;
 mod vndb;
-mod covers;
 
+use covers::cache_cover_image;
 use launcher::launch_executable;
 use models::{LaunchMode, PlaySession, StoryRoute, VisualNovel};
 use storage::{add_play_session_to_library, load_library, save_library};
 use views::{AddVnForm, DetailView, LibraryView, NewVN};
-use covers::cache_cover_image;
 
 use chrono::Utc;
 use dioxus::prelude::*;
@@ -32,14 +32,10 @@ fn App() -> Element {
         }
     };
 
-    let mut visual_novels = use_signal(move || saved_library);
+    let mut vns = use_signal(move || saved_library);
     let mut selected_vn_id = use_signal(|| None::<u64>);
     let selected_vn = match *selected_vn_id.read() {
-        Some(id) => visual_novels
-            .read()
-            .iter()
-            .find(|visual_novel| visual_novel.id == id)
-            .cloned(),
+        Some(id) => vns.read().iter().find(|vn| vn.id == id).cloned(),
         None => None,
     };
 
@@ -48,10 +44,10 @@ fn App() -> Element {
 
     let search_text = search_query.read().to_lowercase();
 
-    let filtered_vns: Vec<VisualNovel> = visual_novels
+    let filtered_vns: Vec<VisualNovel> = vns
         .read()
         .iter()
-        .filter(|visual_novel| visual_novel.title.to_lowercase().contains(&search_text))
+        .filter(|vn| vn.title.to_lowercase().contains(&search_text))
         .cloned()
         .collect();
 
@@ -112,10 +108,10 @@ fn App() -> Element {
                         if *show_add_form.read() {
                             AddVnForm {
                                 on_add: move |new_vn: NewVN| {
-                                    let next_id = visual_novels
+                                    let next_id = vns
                                         .read()
                                         .iter()
-                                        .map(|visual_novel| visual_novel.id)
+                                        .map(|vn| vn.id)
                                         .max()
                                         .unwrap_or(0)
                                         + 1;
@@ -138,27 +134,23 @@ fn App() -> Element {
                                         play_sessions: Vec::new(),
                                     };
 
-                                    visual_novels.write().push(new_vn);
+                                    vns.write().push(new_vn);
 
                                     if let Some(cover_url) = cover_url {
-                                        let mut visual_novels_for_cover = visual_novels;
+                                        let mut vns_for_cover = vns;
 
                                         spawn(async move {
                                             match cache_cover_image(next_id, cover_url).await {
                                                 Ok(cover_path) => {
-                                                    for visual_novel in visual_novels_for_cover
+                                                    for vn in vns_for_cover
                                                         .write()
                                                         .iter_mut()
                                                     {
-                                                        if visual_novel.id == next_id {
-                                                            visual_novel.cover_path = Some(cover_path.clone());
+                                                        if vn.id == next_id {
+                                                            vn.cover_path = Some(cover_path.clone());
                                                         }
                                                     }
-
-                                                    let save_result = save_library(
-                                                        visual_novels_for_cover.read().clone(),
-                                                    );
-
+                                                    let save_result = save_library(vns_for_cover.read().clone());
                                                     if let Err(error) = save_result {
                                                         println!("Could not save cached cover path: {error}");
                                                     }
@@ -171,7 +163,7 @@ fn App() -> Element {
                                         });
                                     }
 
-                                    let save_result = save_library(visual_novels.read().clone());
+                                    let save_result = save_library(vns.read().clone());
 
                                     if let Err(error) = save_result {
                                         println!("Could not save library: {error}");
@@ -181,7 +173,7 @@ fn App() -> Element {
                         }
 
                         LibraryView {
-                            visual_novels: filtered_vns,
+                            vns: filtered_vns,
                             on_select: move |id| {
                                 selected_vn_id.set(Some(id));
 
@@ -192,21 +184,18 @@ fn App() -> Element {
                     //the detail side bar (on the right)
                     aside { class: "detail-column",
                         //a sidebar that shows details for the vn
-                        if let Some(visual_novel) = selected_vn {
+                        if let Some(vn) = selected_vn {
                             DetailView {
-                                visual_novel,
+                                vn,
                                 on_notes_change: move |(id, notes): (u64, String)| {
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.notes = notes.clone();
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save notes: {error}");
-                                    }
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.notes = notes;
+                                        },
+                                        "Could not save notes".to_string(),
+                                    );
                                 },
 
                                 //on adding route
@@ -217,77 +206,70 @@ fn App() -> Element {
                                         notes: None,
                                     };
 
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.routes.push(new_route.clone());
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save route: {error}");
-                                    }
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.routes.push(new_route);
+                                        },
+                                        "Could not save route".to_string(),
+                                    );
                                 },
 
                                 //when toggling a route as completed / uncompleted
                                 on_route_toggle: move |(id, route_name)| {
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            for route in visual_novel.routes.iter_mut() {
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            for route in vn.routes.iter_mut() {
                                                 if route.name == route_name {
                                                     route.completed = !route.completed;
+                                                    break;
                                                 }
                                             }
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save route completion: {error}");
-                                    }
+                                        },
+                                        "Could not save route completion".to_string(),
+                                    );
                                 },
 
                                 //when changing the vn path
                                 on_executable_path_change: move |(id, path): (u64, String)| {
                                     let executable_path = if path.is_empty() { None } else { Some(path) };
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.executable_path = executable_path.clone();
-                                        }
-                                    }
 
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save executable path: {error}");
-                                    }
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.executable_path = executable_path;
+                                        },
+                                        "Could not save executable path".to_string(),
+                                    );
                                 },
 
                                 //when launching a vn
                                 on_launch: move |id| {
-                                    let visual_novel = visual_novels
+                                    let vn = vns
                                         .read()
                                         .iter()
-                                        .find(|visual_novel| visual_novel.id == id)
+                                        .find(|vn| vn.id == id)
                                         .cloned();
 
-                                    match visual_novel {
-                                        Some(visual_novel) => {
-                                            match visual_novel.executable_path {
+                                    match vn {
+                                        Some(vn) => {
+                                            match vn.executable_path {
                                                 Some(path) => {
                                                     match launch_executable(
                                                         path,
-                                                        visual_novel.launch_mode,
-                                                        visual_novel.wine_prefix,
-                                                        visual_novel.wine_locale,
-                                                        visual_novel.launch_arguments,
+                                                        vn.launch_mode,
+                                                        vn.wine_prefix,
+                                                        vn.wine_locale,
+                                                        vn.launch_arguments,
                                                     ) {
                                                         Ok(mut child) => {
                                                             let started_at = Utc::now().to_rfc3339();
                                                             let started_timer = Instant::now();
-                                                            let visual_novel_id = visual_novel.id;
+                                                            let vn_id = vn.id;
 
                                                             //use new thread so not to freeze the app
                                                             thread::spawn(move || {
@@ -299,20 +281,20 @@ fn App() -> Element {
                                                                             started_timer.elapsed().as_secs();
 
                                                                         let play_session = PlaySession {
-                                                                            visual_novel_id,
+                                                                            vn_id,
                                                                             started_at: started_at.clone(),
                                                                             duration_seconds,
                                                                             notes: None,
                                                                         };
 
                                                                         let save_result = add_play_session_to_library(
-                                                                            visual_novel_id,
+                                                                            vn_id,
                                                                             play_session,
                                                                         );
                                                                         match save_result {
                                                                             Ok(()) => {
                                                                                 println!(
-                                                                                    "VN {visual_novel_id} closed after {duration_seconds} seconds and was saved.",
+                                                                                    "VN {vn_id} closed after {duration_seconds} seconds and was saved.",
                                                                                 );
                                                                             }
 
@@ -346,89 +328,62 @@ fn App() -> Element {
 
                                 //when changing launch mode
                                 on_launch_mode_change: move |(id, launch_mode): (u64, LaunchMode)| {
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.launch_mode = launch_mode.clone();
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save launch mode: {error}");
-                                    }
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.launch_mode = launch_mode;
+                                        },
+                                        "Could not save launch mode".to_string(),
+                                    );
                                 },
 
                                 //when changing wine prefix
                                 on_wine_prefix_change: move |(id, prefix): (u64, String)| {
-                                    let wine_prefix = if prefix.is_empty() {
-                                        None
-                                    } else {
-                                        Some(prefix)
-                                    };
+                                    let wine_prefix = if prefix.is_empty() { None } else { Some(prefix) };
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.wine_prefix = wine_prefix;
 
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.wine_prefix = wine_prefix.clone();
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save Wine prefix: {error}");
-                                    }
+                                        },
+                                        "Could not save Wine prefix".to_string(),
+                                    );
                                 },
 
                                 //when changing wine locale
                                 on_wine_locale_change: move |(id, locale): (u64, String)| {
-                                    let wine_locale = if locale.is_empty() {
-                                        None
-                                    } else {
-                                        Some(locale)
-                                    };
+                                    let wine_locale = if locale.is_empty() { None } else { Some(locale) };
 
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.wine_locale = wine_locale.clone();
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save Wine locale: {error}");
-                                    }
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.wine_locale = wine_locale;
+                                        },
+                                        "Could not save Wine locale".to_string(),
+                                    );
                                 },
 
                                 //when adding wine launch arguments
                                 on_launch_arguments_change: move |(id, arguments): (u64, String)| {
-                                    for visual_novel in visual_novels.write().iter_mut() {
-                                        if visual_novel.id == id {
-                                            visual_novel.launch_arguments = arguments.clone();
-                                        }
-                                    }
-
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not save launch argumnets: {error}");
-                                    }
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.launch_arguments = arguments;
+                                        },
+                                        "Could not save launch arguments".to_string(),
+                                    );
                                 },
 
                                 //when deleting a vn
                                 on_delete: move |id| {
-                                    visual_novels.write().retain(|visual_novel| {
-                                        visual_novel.id != id
-                                    });
-
+                                    vns.write().retain(|vn| { vn.id != id });
                                     selected_vn_id.set(None);
 
-                                    let save_result = save_library(visual_novels.read().clone());
-
-                                    if let Err(error) = save_result {
-                                        println!("Could not delete VN: {error}");
-                                    }
+                                    save_vns_or_log(&vns, "Could not delete VN".to_string());
                                 },
                             }
                         } else {
@@ -447,5 +402,31 @@ fn App() -> Element {
             }
 
         }
+    }
+}
+
+///updates one vn then saves the whole library
+fn update_vn_and_save(
+    vns: &mut Signal<Vec<VisualNovel>>,
+    id: u64,
+    update: impl FnOnce(&mut VisualNovel),
+    error_message: String,
+) {
+    for vn in vns.write().iter_mut() {
+        if vn.id == id {
+            update(vn);
+            break;
+        }
+    }
+
+    save_vns_or_log(vns, error_message);
+}
+
+///saves the vn library or prints an error
+fn save_vns_or_log(vns: &Signal<Vec<VisualNovel>>, error_message: String) {
+    let save_result = save_library(vns.read().clone());
+
+    if let Err(error) = save_result {
+        println!("{error_message}: {error}");
     }
 }

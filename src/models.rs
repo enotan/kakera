@@ -55,7 +55,7 @@ pub struct StoryRoute {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PlaySession {
-    pub visual_novel_id: u64,
+    pub vn_id: u64,
     pub started_at: String,
     pub duration_seconds: u64,
     pub notes: Option<String>,

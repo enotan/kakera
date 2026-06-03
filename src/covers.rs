@@ -23,12 +23,12 @@ pub fn cover_cache_dir() -> Result<PathBuf, io::Error> {
 
 ///downloads a cover into the cache dir, returns the file path
 pub async fn cache_cover_image(
-    visual_novel_id: u64,
+    vn_id: u64,
     cover_url: String,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let cache_dir = cover_cache_dir()?;
 
-    let cover_file = cache_dir.join(format!("{visual_novel_id}.jpg"));
+    let cover_file = cache_dir.join(format!("{vn_id}.jpg"));
 
     let image_bytes = reqwest::get(cover_url)
         .await?

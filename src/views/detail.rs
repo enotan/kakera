@@ -6,7 +6,7 @@ use rfd::FileDialog;
 ///displays details for one selected vn
 #[component]
 pub fn DetailView(
-    visual_novel: VisualNovel,
+    vn: VisualNovel,
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
@@ -21,46 +21,42 @@ pub fn DetailView(
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
 
-    let executable_path_text = match visual_novel.executable_path.clone() {
+    let executable_path_text = match vn.executable_path.clone() {
         Some(path) => path,
         None => String::new(),
     };
 
-    let wine_prefix_text = visual_novel.wine_prefix.clone().unwrap_or_default();
-    let wine_locale_text = visual_novel.wine_locale.clone().unwrap_or_default();
+    let wine_prefix_text = vn.wine_prefix.clone().unwrap_or_default();
+    let wine_locale_text = vn.wine_locale.clone().unwrap_or_default();
 
-    let show_wine_settings =
-        cfg!(target_os = "linux") && visual_novel.launch_mode == LaunchMode::Wine;
+    let show_wine_settings = cfg!(target_os = "linux") && vn.launch_mode == LaunchMode::Wine;
 
     let mut wine_prefix_draft = use_signal(|| wine_prefix_text.clone());
     let mut wine_locale_draft = use_signal(|| wine_locale_text.clone());
-    let mut launch_arguments_draft = use_signal(|| visual_novel.launch_arguments.clone());
+    let mut launch_arguments_draft = use_signal(|| vn.launch_arguments.clone());
 
     let wine_prefix_value = wine_prefix_draft.read().clone();
     let wine_locale_value = wine_locale_draft.read().clone();
     let launch_arguments_value = launch_arguments_draft.read().clone();
 
-    let mut notes_draft = use_signal(|| visual_novel.notes.clone());
+    let mut notes_draft = use_signal(|| vn.notes.clone());
     let notes_value = notes_draft.read().clone();
 
     rsx! {
         section { class: "detail-panel",
 
-            h2 { "{visual_novel.title}" }
+            h2 { "{vn.title}" }
 
-            if let Some(cover_src) = cover_source(visual_novel.clone()) {
+            if let Some(cover_src) = cover_source(vn.clone()) {
                 img {
                     class: "detail-cover",
                     src: "{cover_src}",
-                    alt: "Cover art for {visual_novel.title}",
+                    alt: "Cover art for {vn.title}",
                 }
             }
 
-            if let Some(description) = visual_novel.description.clone() {
-                p {
-                    class: "detail-description",
-                    "{description}"
-                }
+            if let Some(description) = vn.description.clone() {
+                p { class: "detail-description", "{description}" }
             }
 
             h3 { "Launch" }
@@ -73,7 +69,7 @@ pub fn DetailView(
                     value: "{executable_path_text}",
 
                     oninput: move |event| {
-                        on_executable_path_change.call((visual_novel.id, event.value()));
+                        on_executable_path_change.call((vn.id, event.value()));
                     },
                 }
             }
@@ -89,7 +85,7 @@ pub fn DetailView(
 
                     if let Some(path) = picked_file {
                         on_executable_path_change
-                            .call((visual_novel.id, path.to_string_lossy().to_string()));
+                            .call((vn.id, path.to_string_lossy().to_string()));
                     }
                 },
 
@@ -97,12 +93,11 @@ pub fn DetailView(
             }
 
             //launch mode selector
-            label {
-                class: "launch-selector",
+            label { class: "launch-selector",
                 "Launch mode"
 
                 select {
-                    value: match visual_novel.launch_mode {
+                    value: match vn.launch_mode {
                         LaunchMode::Native => "native",
                         LaunchMode::Wine => "wine",
                     },
@@ -112,7 +107,7 @@ pub fn DetailView(
                             "wine" => LaunchMode::Wine,
                             _ => LaunchMode::Native,
                         };
-                        on_launch_mode_change.call((visual_novel.id, launch_mode))
+                        on_launch_mode_change.call((vn.id, launch_mode))
                     },
 
                     option { value: "native", "Native" }
@@ -123,8 +118,7 @@ pub fn DetailView(
 
             //wine settings area
             if show_wine_settings {
-                div {
-                    class: "wine-settings",
+                div { class: "wine-settings",
 
                     h3 { "Wine Settings" }
 
@@ -139,10 +133,7 @@ pub fn DetailView(
                             },
 
                             onblur: move |_| {
-                                on_wine_prefix_change.call((
-                                    visual_novel.id,
-                                    wine_prefix_draft.read().clone(),
-                                ));
+                                on_wine_prefix_change.call((vn.id, wine_prefix_draft.read().clone()));
                             },
                         }
                     }
@@ -154,10 +145,7 @@ pub fn DetailView(
                             let picked_folder = FileDialog::new().pick_folder();
 
                             if let Some(path) = picked_folder {
-                                on_wine_prefix_change.call((
-                                    visual_novel.id,
-                                    path.to_string_lossy().to_string(),
-                                ));
+                                on_wine_prefix_change.call((vn.id, path.to_string_lossy().to_string()));
                             }
                         },
 
@@ -176,10 +164,7 @@ pub fn DetailView(
                             },
 
                             onblur: move |_| {
-                                on_wine_locale_change.call((
-                                    visual_novel.id,
-                                    wine_locale_draft.read().clone()
-                                ));
+                                on_wine_locale_change.call((vn.id, wine_locale_draft.read().clone()));
                             },
                         }
                     }
@@ -196,10 +181,7 @@ pub fn DetailView(
                             },
 
                             onblur: move |_| {
-                                on_launch_arguments_change.call((
-                                    visual_novel.id,
-                                    launch_arguments_draft.read().clone(),
-                                ));
+                                on_launch_arguments_change.call((vn.id, launch_arguments_draft.read().clone()));
                             },
                         }
                     }
@@ -210,10 +192,10 @@ pub fn DetailView(
             button {
                 class: "launch-button",
 
-                disabled: visual_novel.executable_path.is_none(),
+                disabled: vn.executable_path.is_none(),
 
                 onclick: move |_| {
-                    on_launch.call(visual_novel.id);
+                    on_launch.call(vn.id);
                 },
 
                 "Launch"
@@ -221,10 +203,10 @@ pub fn DetailView(
 
             //play sessions
             h3 { "Play sessions" }
-            p { "Sessions recorded: {visual_novel.play_sessions.len()}" }
+            p { "Sessions recorded: {vn.play_sessions.len()}" }
 
             ul {
-                for session in visual_novel.play_sessions.clone() {
+                for session in vn.play_sessions.clone() {
                     li {
 
                         "{format_started_at(session.started_at.clone())} - {session.duration_seconds} seconds"
@@ -243,15 +225,12 @@ pub fn DetailView(
                 },
 
                 onblur: move |_| {
-                    on_notes_change.call((
-                        visual_novel.id,
-                        notes_draft.read().clone(),
-                    ));
+                    on_notes_change.call((vn.id, notes_draft.read().clone()));
                 },
             }
 
             h3 { "Routes" }
-            p { "Routes tracked: {visual_novel.routes.len()}" }
+            p { "Routes tracked: {vn.routes.len()}" }
 
             label {
                 "New route"
@@ -270,7 +249,7 @@ pub fn DetailView(
                     let route_name = new_route_name.read().clone();
 
                     if !route_name.is_empty() {
-                        on_route_add.call((visual_novel.id, route_name));
+                        on_route_add.call((vn.id, route_name));
                         new_route_name.set(String::new());
                     }
                 },
@@ -278,12 +257,10 @@ pub fn DetailView(
                 "Add route"
             }
 
-            div {
-                class: "route-list",
+            div { class: "route-list",
 
-                for route in visual_novel.routes.clone() {
-                    label {
-                        class: "route-item",
+                for route in vn.routes.clone() {
+                    label { class: "route-item",
 
                         input {
                             class: "route-checkbox",
@@ -291,14 +268,11 @@ pub fn DetailView(
                             checked: route.completed,
 
                             onchange: move |_| {
-                                on_route_toggle.call((visual_novel.id, route.name.clone()));
+                                on_route_toggle.call((vn.id, route.name.clone()));
                             },
                         }
 
-                        span {
-                            class: "route-name",
-                            "{route.name}"
-                        }
+                        span { class: "route-name", "{route.name}" }
                     }
                 }
             }
@@ -307,7 +281,7 @@ pub fn DetailView(
                 class: "delete-button",
 
                 onclick: move |_| {
-                    on_delete.call(visual_novel.id);
+                    on_delete.call(vn.id);
                 },
 
                 "Delete VN"
