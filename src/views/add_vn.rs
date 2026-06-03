@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 pub struct NewVN {
     pub title: String,
     pub cover_url: Option<String>,
+    pub cover_path: Option<String>,
     pub description: Option<String>,
 }
 
@@ -13,6 +14,12 @@ pub struct NewVN {
 #[component]
 pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
     let mut title = use_signal(String::new);
+    let mut description = use_signal(String::new);
+    let mut cover_path = use_signal(|| None::<String>);
+
+    let description_text = description.read().clone();
+    let cover_path_text = cover_path.read().clone();
+
     let mut search_results: Signal<Vec<VndbSearchResult>> = use_signal(Vec::new);
     let mut search_message = use_signal(String::new);
 
@@ -25,6 +32,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
 
             h2 { "Add VN" }
 
+            //title input
             label {
                 "Title"
 
@@ -37,18 +45,59 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                 }
             }
 
+            //description input
+            label {
+                "Description"
+
+                textarea {
+                    value: "{description_text}",
+
+                    oninput: move |event| {
+                        description.set(event.value());
+                    },
+                }
+            }
+
+            //button to pick image
+            button {
+                class: "fp-button",
+
+                onclick: move |_| {
+                    let picked_file = rfd::FileDialog::new()
+                        .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                        .pick_file();
+
+                    if let Some(path) = picked_file {
+                        cover_path.set(Some(path.to_string_lossy().to_string()));
+                    }
+                },
+
+                "Choose cover image"
+            }
+
+            if let Some(path) = cover_path_text {
+                p { "Cover: {path}" }
+            }
+
+            //button to add a vn
             button {
                 onclick: move |_| {
                     let typed_title = title.read().clone();
 
                     if !typed_title.is_empty() {
-                        on_add
-                            .call(NewVN {
+                        on_add.call(NewVN {
                                 title: typed_title,
                                 cover_url: None,
-                                description: None,
-                            });
+                                cover_path: cover_path.read().clone(),
+                                description: if description.read().is_empty() {
+                                    None
+                                } else {
+                                    Some(description.read().clone())
+                                },
+                        });
                         title.set(String::new());
+                        description.set(String::new());
+                        cover_path.set(None);
                     }
                 },
 
@@ -99,6 +148,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                                         title: result.title.clone(),
                                         cover_url: result.image.clone().and_then(|image| image.url),
                                         description: result.description.clone(),
+                                        cover_path: None,
                                     });
                             },
 

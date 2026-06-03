@@ -17,6 +17,8 @@ pub fn DetailView(
     on_wine_prefix_change: EventHandler<(u64, String)>,
     on_wine_locale_change: EventHandler<(u64, String)>,
     on_launch_arguments_change: EventHandler<(u64, String)>,
+    on_description_change: EventHandler<(u64, String)>,
+    on_cover_path_change: EventHandler<(u64, String)>,
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
@@ -42,11 +44,15 @@ pub fn DetailView(
     let mut notes_draft = use_signal(|| vn.notes.clone());
     let notes_value = notes_draft.read().clone();
 
+    let mut description_draft = use_signal(|| vn.description.clone().unwrap_or_default());
+    let description_value = description_draft.read().clone();
+
     rsx! {
         section { class: "detail-panel",
 
             h2 { "{vn.title}" }
 
+            //img cover
             if let Some(cover_src) = cover_source(vn.clone()) {
                 img {
                     class: "detail-cover",
@@ -55,8 +61,38 @@ pub fn DetailView(
                 }
             }
 
-            if let Some(description) = vn.description.clone() {
-                p { class: "detail-description", "{description}" }
+            button {
+                class: "fp-button",
+
+                onclick: move |_| {
+                    let picked_file = FileDialog::new()
+                        .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                        .pick_file();
+
+                    if let Some(path) = picked_file {
+                        on_cover_path_change.call((vn.id, path.to_string_lossy().to_string()));
+                    }
+                },
+
+                "Change cover image"
+            }
+
+            //desc
+            if let Some(_description) = vn.description.clone() {
+                h3 { "Description" }
+
+                textarea {
+                    class: "detail-description-input",
+                    value: "{description_value}",
+
+                    oninput: move |event| {
+                        description_draft.set(event.value());
+                    },
+
+                    onblur: move |_| {
+                        on_description_change.call((vn.id, description_draft.read().clone()));
+                    },
+                }
             }
 
             h3 { "Launch" }

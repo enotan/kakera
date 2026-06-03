@@ -13,13 +13,23 @@ use views::{AddVnForm, DetailView, LibraryView, NewVN};
 
 use chrono::Utc;
 use dioxus::prelude::*;
+use dioxus::desktop::{Config, WindowBuilder};
 use std::thread;
 use std::time::Instant;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const BG_IMAGE: Asset = asset!("/assets/ev221_al.png");
 
 fn main() {
-    dioxus::launch(App);
+    dioxus::LaunchBuilder::desktop()
+        .with_cfg(
+            Config::new().with_window(
+                WindowBuilder::new()
+                    .with_title("Kakera")
+                    .with_decorations(false),
+            ),
+        )
+        .launch(App);
 }
 
 #[component]
@@ -51,14 +61,75 @@ fn App() -> Element {
         .cloned()
         .collect();
 
+    let desktop = dioxus::desktop::window();
+    let drag_win = desktop.clone();
+    let min_win = desktop.clone();
+    let max_win = desktop.clone();
+    let close_win = desktop.clone();
+
     rsx! {
 
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
-        main { class: "app-frame",
+        main { class: "app-frame", style: "--app-bg-image: url('{BG_IMAGE}');",
 
-            //the side bar to the left
-            aside { class: "sidebar",
+            //titlebar            
+            div {
+                class: "win-titlebar",
+                
+                    //window drag region
+                    div {
+                        class: "win-drag-region",
+
+                        onmousedown: move |_| {
+                            drag_win.drag();
+                        },
+
+                        span {
+                            class: "win-title",
+                            "Kakera"
+                        }
+                    }
+
+                    //win controls
+                    div {
+                        class: "win-controls",
+
+                        button {
+                            class: "win-control-button",
+                            onclick: move |_| {
+                                min_win.set_minimized(true);
+                            },
+
+                            "-"
+                        }
+
+                        button {
+                            class: "win-control-button",
+                            onclick: move |_| {
+                                max_win.toggle_maximized();
+                            },
+
+                            "□"
+                        }
+
+                        button {
+                            class: "win-control-button close",
+                            onclick: move |_| {
+                                close_win.close();
+                            },
+
+                            "×"
+                        }
+                    }
+            }
+
+
+            div {
+                class: "app-body",
+
+                //the side bar to the left
+                aside { class: "sidebar",
 
                 //will be replaced with a cool logo later
                 div { class: "logo", "Kakera" }
@@ -72,7 +143,7 @@ fn App() -> Element {
                 }
             }
 
-            section { class: "main-area",
+                section { class: "main-area",
 
                 //the bar at the top
                 header { class: "topbar",
@@ -98,6 +169,8 @@ fn App() -> Element {
 
                         "+"
                     }
+
+                    
                 }
 
                 div { class: "app-layout",
@@ -123,7 +196,7 @@ fn App() -> Element {
                                         title: new_vn.title,
                                         cover_url: new_vn.cover_url,
                                         description: new_vn.description,
-                                        cover_path: None,
+                                        cover_path: new_vn.cover_path,
                                         executable_path: None,
                                         launch_mode: LaunchMode::default(),
                                         wine_prefix: None,
@@ -385,6 +458,33 @@ fn App() -> Element {
 
                                     save_vns_or_log(&vns, "Could not delete VN".to_string());
                                 },
+
+                                //when changing desc
+                                on_description_change: move |(id, description): (u64, String)| {
+                                    let description = if description.is_empty() { None } else { Some(description) };
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.description = description;
+                                        },
+
+                                        "Could not save description".to_string(),
+                                    );
+                                },
+
+                                //when changing cover
+                                on_cover_path_change: move |(id, cover_path): (u64, String)| {
+                                    update_vn_and_save(
+                                        &mut vns,
+                                        id,
+                                        move |vn| {
+                                            vn.cover_path = Some(cover_path);
+                                        },
+
+                                        "Could not save cover image".to_string(),
+                                    );
+                                },
                             }
                         } else {
                             //displayed when no vn is selected
@@ -398,6 +498,8 @@ fn App() -> Element {
                         }
                     }
                 }
+
+            }
 
             }
 

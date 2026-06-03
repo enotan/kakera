@@ -55,6 +55,7 @@ pub struct StoryRoute {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PlaySession {
+    #[serde(alias = "visual_novel_id")]
     pub vn_id: u64,
     pub started_at: String,
     pub duration_seconds: u64,
