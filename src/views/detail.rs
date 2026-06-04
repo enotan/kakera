@@ -1,4 +1,4 @@
-use crate::models::{LaunchMode, VisualNovel};
+use crate::models::{LaunchMode, VisualNovel, StoryRoute};
 use crate::views::library::cover_source;
 use crate::vn_markup::{parse_description, DescriptionPart};
 use dioxus::prelude::*;
@@ -20,6 +20,8 @@ pub fn DetailView(
     on_launch_arguments_change: EventHandler<(u64, String)>,
     on_description_change: EventHandler<(u64, String)>,
     on_cover_path_change: EventHandler<(u64, String)>,
+    on_active_route_change: EventHandler<(u64, Option<String>)>,
+    on_route_delete: EventHandler<(u64, String)>,
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
@@ -87,12 +89,7 @@ pub fn DetailView(
             if let Some(_description) = vn.description.clone() {
                 h3 { "Description" }
 
-                div {
-                    class: if *description_is_editing.read() {
-                        "desc-box editing"
-                    } else {
-                        "desc-box"
-                    },
+                div { class: if *description_is_editing.read() { "desc-box editing" } else { "desc-box" },
 
                     button {
                         class: "desc-edit-button",
@@ -100,11 +97,11 @@ pub fn DetailView(
 
                         onclick: move |_| {
                             let next_value = !*description_is_editing.read();
-                            
+
                             if next_value {
                                 description_draft.set(vn.description.clone().unwrap_or_default());
                             }
-                            
+
                             description_is_editing.set(next_value);
                         },
 
@@ -121,21 +118,14 @@ pub fn DetailView(
                             },
 
                             onblur: move |_| {
-                                on_description_change.call((
-                                    vn.id,
-                                    description_draft.read().clone(),
-                                ));
+                                on_description_change.call((vn.id, description_draft.read().clone()));
                                 description_is_editing.set(false);
                             },
                         }
                     } else if saved_description.is_empty() {
-                        div {
-                            class: "detail-desc empty",
-                            "No description yet."
-                        }
+                        div { class: "detail-desc empty", "No description yet." }
                     } else {
-                        div {
-                            class: "detail-desc",
+                        div { class: "detail-desc",
 
                             for part in description_parts {
                                 DescriptionPartView { part }
@@ -303,12 +293,7 @@ pub fn DetailView(
             //notes
             h3 { "Notes" }
 
-            div {
-                class: if *notes_is_editing.read() {
-                    "notes-box editing"
-                } else {
-                    "notes-box"
-                },
+            div { class: if *notes_is_editing.read() { "notes-box editing" } else { "notes-box" },
 
                 button {
                     class: "notes-edit-button",
@@ -337,23 +322,14 @@ pub fn DetailView(
                         },
 
                         onblur: move |_| {
-                            on_notes_change.call((
-                                vn.id,
-                                notes_draft.read().clone(),
-                            ));
+                            on_notes_change.call((vn.id, notes_draft.read().clone()));
                             notes_is_editing.set(false);
                         },
                     }
                 } else if saved_notes.is_empty() {
-                    p {
-                        class: "notes-text empty",
-                        "No notes yet."
-                    }
+                    p { class: "notes-text empty", "No notes yet." }
                 } else {
-                    p {
-                        class: "notes-text",
-                        "{saved_notes}"
-                    }
+                    p { class: "notes-text", "{saved_notes}" }
                 }
             }
 
@@ -385,22 +361,43 @@ pub fn DetailView(
                 "Add route"
             }
 
+            label {
+                "Active route"
+
+                select {
+                    value: vn.active_route.clone().unwrap_or_default(),
+
+                    onchange: move |event| {
+                        let route_name = event.value();
+
+                        let active_route = if route_name.is_empty() {
+                            None
+                        } else {
+                            Some(route_name)
+                        };
+
+                        on_active_route_change.call((vn.id, active_route));
+                    },
+
+                    option { value: "", "No active route" }
+
+                    for route in vn.routes.clone() {
+                        option {
+                            value: "{route.name}",
+                            "{route.name}"
+                        }
+                    }
+                }
+            }
+
             div { class: "route-list",
 
                 for route in vn.routes.clone() {
-                    label { class: "route-item",
-
-                        input {
-                            class: "route-checkbox",
-                            r#type: "checkbox",
-                            checked: route.completed,
-
-                            onchange: move |_| {
-                                on_route_toggle.call((vn.id, route.name.clone()));
-                            },
-                        }
-
-                        span { class: "route-name", "{route.name}" }
+                    RouteItem {
+                        vn_id: vn.id,
+                        route,
+                        on_route_toggle,
+                        on_route_delete,
                     }
                 }
             }
@@ -441,11 +438,7 @@ fn DescriptionPartView(part: DescriptionPart) -> Element {
             em { "{text}" }
         },
         DescriptionPart::Link { label, url } => rsx! {
-            a {
-                href: "{url}",
-                target: "_blank",
-                "{label}"
-            }
+            a { href: "{url}", target: "_blank", "{label}" }
         },
         DescriptionPart::Spoiler(parts) => rsx! {
             SpoilerText { parts }
@@ -474,6 +467,44 @@ fn SpoilerText(parts: Vec<DescriptionPart>) -> Element {
                     is_revealed.set(true);
                 },
                 "Spoiler"
+            }
+        }
+    }
+}
+
+#[component]
+fn RouteItem(
+    vn_id: u64,
+    route: StoryRoute,
+    on_route_toggle: EventHandler<(u64, String)>,
+    on_route_delete: EventHandler<(u64, String)>,
+) -> Element {
+    let route_name_for_toggle = route.name.clone();
+    let route_name_for_delete = route.name.clone();
+
+    rsx! {
+        label { class: "route-item",
+            input {
+                class: "route-checkbox",
+                r#type: "checkbox",
+                checked: route.completed,
+
+                onchange: move |_| {
+                    on_route_toggle.call((vn_id, route_name_for_toggle.clone()));
+                },
+            }
+
+            span { class: "route-name", "{route.name}" }
+
+            button {
+                class: "route-delete-button",
+                title: "Delete route",
+
+                onclick: move |_| {
+                    on_route_delete.call((vn_id, route_name_for_delete.clone()));
+                },
+
+                "🗑"
             }
         }
     }

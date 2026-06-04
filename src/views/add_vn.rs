@@ -85,7 +85,8 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                     let typed_title = title.read().clone();
 
                     if !typed_title.is_empty() {
-                        on_add.call(NewVN {
+                        on_add
+                            .call(NewVN {
                                 title: typed_title,
                                 cover_url: None,
                                 cover_path: cover_path.read().clone(),
@@ -94,7 +95,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                                 } else {
                                     Some(description.read().clone())
                                 },
-                        });
+                            });
                         title.set(String::new());
                         description.set(String::new());
                         cover_path.set(None);

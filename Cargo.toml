@@ -15,6 +15,7 @@ reqwest = { version = "0.13.4", features = ["json"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 rfd = "0.17.2"
+discord-rich-presence = "1.1.0"
 
 [features]
 default = ["desktop"]

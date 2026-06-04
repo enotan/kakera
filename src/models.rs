@@ -36,6 +36,10 @@ pub struct VisualNovel {
 
     pub notes: String,
     pub routes: Vec<StoryRoute>,
+
+    #[serde(default)]
+    pub active_route: Option<String>,
+    
     pub play_sessions: Vec<PlaySession>,
 }
 
@@ -60,4 +64,20 @@ pub struct PlaySession {
     pub started_at: String,
     pub duration_seconds: u64,
     pub notes: Option<String>,
+}
+
+///settings set in the settings panel
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AppSettings {
+    #[serde(default)]
+    pub discord_rich_presence_enabled: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            discord_rich_presence_enabled: true,
+        }
+    }
 }

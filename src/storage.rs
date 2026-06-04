@@ -1,4 +1,4 @@
-use crate::models::VisualNovel;
+use crate::models::{AppSettings, VisualNovel};
 
 use std::path::PathBuf;
 use std::{fs, io};
@@ -83,6 +83,69 @@ pub fn add_play_session_to_library(
     }
 
     save_library(library)?;
+
+    Ok(())
+}
+
+///returns the path where settings are stored
+pub fn settings_file_path() -> Result<PathBuf, io::Error> {
+    let data_dir = match dirs::data_dir() {
+        Some(path) => path,
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Could not find an app data directory."
+            ));
+        }
+    };
+
+    Ok(data_dir.join("kakera").join("settings.json"))
+}
+
+///loads the settings
+pub fn load_settings() -> Result<AppSettings, io::Error> {
+    let settings_file = settings_file_path()?;
+
+    let json_text = match fs::read_to_string(&settings_file) {
+        Ok(text) => text,
+        Err(error) => {
+            if error.kind() == io::ErrorKind::NotFound {
+                return Ok(AppSettings::default());
+            }
+
+            return Err(error);
+        }
+    };
+
+    let settings = match serde_json::from_str::<AppSettings>(&json_text) {
+        Ok(settings) => settings,
+        Err(error) => {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, error));
+        }
+    };
+
+    Ok(settings)
+}
+
+///saves settings
+pub fn save_settings(settings: AppSettings) -> Result<(), io::Error> {
+    let settings_file = settings_file_path()?;
+
+    let settings_dir = match settings_file.parent() {
+        Some(path) => path,
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Settings file path has no parent directory",
+            ));
+        }
+    };
+
+    fs::create_dir_all(settings_dir)?;
+
+    let json_text = serde_json::to_string_pretty(&settings)?;
+
+    fs::write(settings_file, json_text)?;
 
     Ok(())
 }
