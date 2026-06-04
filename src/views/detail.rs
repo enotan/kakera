@@ -45,6 +45,8 @@ pub fn DetailView(
     let notes_value = notes_draft.read().clone();
 
     let mut description_draft = use_signal(|| vn.description.clone().unwrap_or_default());
+    let mut description_is_editing = use_signal(|| false);
+    let saved_description = vn.description.clone().unwrap_or_default();
     let description_value = description_draft.read().clone();
 
     rsx! {
@@ -81,17 +83,58 @@ pub fn DetailView(
             if let Some(_description) = vn.description.clone() {
                 h3 { "Description" }
 
-                textarea {
-                    class: "detail-description-input",
-                    value: "{description_value}",
-
-                    oninput: move |event| {
-                        description_draft.set(event.value());
+                div {
+                    class: if *description_is_editing.read() {
+                        "desc-box editing"
+                    } else {
+                        "desc-box"
                     },
 
-                    onblur: move |_| {
-                        on_description_change.call((vn.id, description_draft.read().clone()));
-                    },
+                    button {
+                        class: "desc-edit-button",
+                        title: "Edit Description",
+
+                        onclick: move |_| {
+                            let next_value = !*description_is_editing.read();
+                            
+                            if next_value {
+                                description_draft.set(vn.description.clone().unwrap_or_default());
+                            }
+                            
+                            description_is_editing.set(next_value);
+                        },
+
+                        "✎"
+                    }
+
+                    if *description_is_editing.read() {
+                        textarea {
+                            class: "detail-desc-input",
+                            value: "{description_value}",
+
+                            oninput: move |event| {
+                                description_draft.set(event.value());
+                            },
+
+                            onblur: move |_| {
+                                on_description_change.call((
+                                    vn.id,
+                                    description_draft.read().clone(),
+                                ));
+                                description_is_editing.set(false);
+                            },
+                        }
+                    } else if saved_description.is_empty() {
+                        p {
+                            class: "detail-desc empty",
+                            "No description yet."
+                        }
+                    } else {
+                        p {
+                            class: "detail-desc",
+                            "{saved_description}"
+                        }
+                    }
                 }
             }
 

@@ -98,7 +98,7 @@ body {
     min-width: 380px;
     background: var(--bg);
     color: var(--text);
-    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-family: "Quicksand", "Segoe UI", system-ui, sans-serif;
 }
 
 html,
@@ -201,6 +201,20 @@ img {
     background-position: center;
     background-repeat: no-repeat;
     z-index: -2;
+}
+
+.star-overlay {
+    position: absolute;
+    inset: 0;
+    background-image: var(--stars-image);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.35;
+    z-index: 0;
+    pointer-events: none;
+    transform: scale(1.5);
+    mix-blend-mode: screen;
 }
 
 .sidebar {
@@ -417,7 +431,7 @@ img {
 
 .library-section h2 {
     margin: 0 0 var(--space-4);
-    font-size: 15px;
+    font-size: 1.5rem;
     color: var(--muted);
     font-weight:  500;
 }
@@ -673,6 +687,78 @@ select option {
     border-radius: var(--radius-md);
     background: var(--bg-wine-settings);
     padding: var(--space-3);
+}
+
+.desc-box {
+    position: relative;
+    min-width: 0;
+    width: 100%;
+}
+
+.desc-box-editing {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--bg-panel);
+    padding: 14px
+}
+
+.detail-panel .desc-edit-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(8, 24, 48, 0.82);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.16s ease,
+        background 0.16s ease,
+        color 0.16s ease,
+        border-color 0.16s ease;
+}
+
+.desc-box:hover .desc-edit-button,
+.desc-edit-button:focus {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.detail-panel .desc-edit-button:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.detail-desc {
+    width: 100%;
+    margin: 0;
+    padding-right: 42px;
+    line-height: 1.5;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.detail-desc.empty {
+    color: var(--muted-2);
+}
+
+.detail-desc-input {
+    width: 100%;
+    min-height: 180px;
+    max-height: 180px;
+    padding-right: 34px;
+    resize: vertical;
 }
 
 @media (max-width: 1100px) {

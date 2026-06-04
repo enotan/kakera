@@ -20,6 +20,7 @@ use std::time::Instant;
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const BG_IMAGE: Asset = asset!("/assets/hikarublur.png");
 const LOGO_IMAGE: Asset = asset!("/assets/kakeralogo.png");
+const STARS_IMAGE: Asset = asset!("/assets/stars.jpg");
 
 fn main() {
     dioxus::LaunchBuilder::desktop()
@@ -74,6 +75,7 @@ fn App() -> Element {
 
         main { class: "app-frame", style: "--app-bg-image: url('{BG_IMAGE}');",
 
+            div { class: "star-overlay", style: "--stars-image: url('{STARS_IMAGE}');" },
             //titlebar            
             div {
                 class: "win-titlebar",
