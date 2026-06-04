@@ -43,6 +43,8 @@ pub fn DetailView(
 
     let mut notes_draft = use_signal(|| vn.notes.clone());
     let notes_value = notes_draft.read().clone();
+    let saved_notes = vn.notes.clone();
+    let mut notes_is_editing = use_signal(|| false);
 
     let mut description_draft = use_signal(|| vn.description.clone().unwrap_or_default());
     let mut description_is_editing = use_signal(|| false);
@@ -296,16 +298,58 @@ pub fn DetailView(
             //notes
             h3 { "Notes" }
 
-            textarea {
-                value: "{notes_value}",
-
-                oninput: move |event| {
-                    notes_draft.set(event.value());
+            div {
+                class: if *notes_is_editing.read() {
+                    "notes-box editing"
+                } else {
+                    "notes-box"
                 },
 
-                onblur: move |_| {
-                    on_notes_change.call((vn.id, notes_draft.read().clone()));
-                },
+                button {
+                    class: "notes-edit-button",
+                    title: "Edit notes",
+
+                    onclick: move |_| {
+                        let next_value = !*notes_is_editing.read();
+
+                        if next_value {
+                            notes_draft.set(vn.notes.clone());
+                        }
+
+                        notes_is_editing.set(next_value);
+                    },
+
+                    "✎"
+                }
+
+                if *notes_is_editing.read() {
+                    textarea {
+                        class: "notes-input",
+                        value: "{notes_value}",
+
+                        oninput: move |event| {
+                            notes_draft.set(event.value());
+                        },
+
+                        onblur: move |_| {
+                            on_notes_change.call((
+                                vn.id,
+                                notes_draft.read().clone(),
+                            ));
+                            notes_is_editing.set(false);
+                        },
+                    }
+                } else if saved_notes.is_empty() {
+                    p {
+                        class: "notes-text empty",
+                        "No notes yet."
+                    }
+                } else {
+                    p {
+                        class: "notes-text",
+                        "{saved_notes}"
+                    }
+                }
             }
 
             h3 { "Routes" }

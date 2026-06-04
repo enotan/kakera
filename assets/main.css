@@ -761,6 +761,78 @@ select option {
     resize: vertical;
 }
 
+.notes-box {
+    position: relative;
+    min-width: 0;
+    width: 100%;
+}
+
+.notes-box.editing {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--bg-panel);
+    padding: 14px;
+}
+
+.detail-panel .notes-edit-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(8, 24, 48, 0.82);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.16s ease,
+        background 0.16s ease,
+        color 0.16s ease,
+        border-color 0.16s ease;
+}
+
+.notes-box:hover .notes-edit-button,
+.notes-edit-button:focus {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.detail-panel .notes-edit-button:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.notes-text {
+    width: 100%;
+    margin: 0;
+    padding-right: 42px;
+    line-height: 1.5;
+    color: var(--text);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.notes-text.empty {
+    color: var(--muted-2);
+}
+
+.notes-input {
+    width: 100%;
+    min-height: 140px;
+    padding-right: 34px;
+    resize: vertical;
+}
+
 @media (max-width: 1100px) {
     .app-layout {
         grid-template-columns: 1fr;
