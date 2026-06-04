@@ -18,7 +18,8 @@ use std::thread;
 use std::time::Instant;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
-const BG_IMAGE: Asset = asset!("/assets/ev221_al.png");
+const BG_IMAGE: Asset = asset!("/assets/hikarublur.png");
+const LOGO_IMAGE: Asset = asset!("/assets/kakeralogo.png");
 
 fn main() {
     dioxus::LaunchBuilder::desktop()
@@ -131,8 +132,16 @@ fn App() -> Element {
                 //the side bar to the left
                 aside { class: "sidebar",
 
-                //will be replaced with a cool logo later
-                div { class: "logo", "Kakera" }
+                //kakera logo
+                div {
+                    class: "logo",
+
+                    img {
+                        class: "logo-image",
+                        src: LOGO_IMAGE,
+                        alt: "Kakera"
+                    }
+                }
 
                 nav { class: "sidebar-nav",
 

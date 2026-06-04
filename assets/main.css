@@ -14,18 +14,35 @@
     --bg-panel-strong: rgba(10, 31, 61, 0.82);
     --bg-input: rgba(6, 18, 37, 0.72);
     --bg-hover: rgba(42, 116, 220, 0.18);
+    --bg-titlebar: rgba(3, 10, 20, 0.88);
+    --bg-image-fade-end: rgba(0, 0, 0, 0);
+    --bg-cover-placeholder-end: rgba(24, 58, 104, 0.82);
+    --bg-wine-settings: rgba(8, 24, 48, 0.48);
 
     --line: rgba(91, 153, 235, 0.26);
     --line-strong: rgba(105, 172, 255, 0.48);
 
     --text: rgba(238, 246, 255, 1);
+    --text-on-accent: rgba(255, 255, 255, 1);
     --muted: rgba(174, 194, 224, 0.82);
     --muted-2: rgba(137, 160, 196, 0.72);
 
     --accent: rgba(82, 163, 255, 1);
     --accent-strong: rgba(50, 128, 240, 1);
+    --accent-glow: rgba(82, 163, 255, 0.72);
     --accent-soft: rgba(82, 163, 255, 0.16);
     --accent-focus-ring: rgba(82, 163, 255, 0.32);
+    --accent-inset-ring: rgba(82, 163, 255, 0.08);
+    --accent-card-ring: rgba(82, 163, 255, 0.18);
+    --accent-card-shadow: rgba(36, 112, 220, 0.2);
+
+    --logo-color-filter: brightness(1.08) contrast(1.08) sepia(1) saturate(3.4) hue-rotate(180deg);
+
+    --shadow-detail: rgba(0, 0, 0, 0.32);
+
+    --panel: var(--bg-panel);
+    --panel-2: var(--bg-panel-fade);
+    --panel-3: var(--bg-panel-strong);
 
     --danger: rgba(255, 107, 138, 1);
     --danger-border: rgba(255, 107, 138, 0.45);
@@ -114,7 +131,7 @@ button:hover {
 .icon-button:hover {
     background: transparent;
     border: 0;
-    text-shadow: 0 0 10px var(--accent);
+    color: var(--accent);
 }
 
 button:disabled {
@@ -177,13 +194,12 @@ img {
         linear-gradient(
             90deg,
             var(--bg-app-blue) 17%,
-            rgba(0, 0, 0, 0) 100%
+            var(--bg-image-fade-end) 100%
         ),
         var(--app-bg-image);
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    filter: blur(5px) brightness(0.8) saturate(1.25);
     z-index: -2;
 }
 
@@ -191,17 +207,21 @@ img {
     height: 100%;
     border-right: 1px solid var(--line);
     background: var(--bg-app-blue);
-    backdrop-filter: blur(18px);
     padding: 30px 0;
     margin: 0;
 }
 
 .logo {
-    color: var(--accent);
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: 0;
-    margin: 0 18px 34px;
+    position: relative;
+    width: calc(100% - 28px);
+    margin: 0 auto 34px;
+}
+
+.logo-image {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    filter: var(--logo-color-filter);
 }
 
 .sidebar-nav {
@@ -256,7 +276,7 @@ img {
     display: flex;
     align-items: center;
     border-bottom: 1px solid var(--line);
-    background: rgba(3, 10, 20, 0.88);
+    background: var(--bg-titlebar);
 }
 
 .win-drag-region {
@@ -314,7 +334,7 @@ img {
     width: min(520px, 100%);
     height: 44px;
     border-radius: var(--radius-md);
-    box-shadow: inset 0 0 0 1px rgba(82, 163, 255, 0.08);
+    box-shadow: inset 0 0 0 1px var(--accent-inset-ring);
     padding: 0 15px;
 }
 
@@ -381,7 +401,6 @@ img {
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     background: var(--panel);
-    backdrop-filter: blur(20px);
 }
 
 .add-vn-panel {
@@ -417,18 +436,20 @@ img {
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: var(--bg-panel-fade);
-    backdrop-filter: blur(14px);
     padding: 0;
     cursor: pointer;
-    transition: all ease 0.18s;
+    transition:
+        transform 0.18s ease,
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
 }
 
 .vn-card:hover {
     transform: translateY(-2px);
     border-color: var(--accent);
     box-shadow:
-        0 0 0 1px rgba(82, 163, 255, 0.18),
-        0 18px 46px rgba(36, 112, 220, 0.2);
+        0 0 0 1px var(--accent-card-ring),
+        0 18px 46px var(--accent-card-shadow);
 }
 
 .vn-cover-frame {
@@ -440,6 +461,7 @@ img {
     background: var(--bg-panel-strong);
     aspect-ratio: 3 / 4;
     margin: 0;
+    transition: box-shadow 0.2s ease;
 }
 
 .vn-cover {
@@ -451,9 +473,7 @@ img {
 .vn-cover-frame:hover {
     box-shadow:
         0 0 0 1px var(--accent),
-        0 0 14px var(--accent-2);
-
-    transition: all 0.2s ease;
+        0 0 14px var(--accent-glow);
 }
 
 .vn-cover-placeholder {
@@ -490,9 +510,7 @@ img {
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
     background: var(--bg-panel);
-    backdrop-filter: blur(20px);
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
-    padding: var(--space-5);
+    box-shadow: 0 24px 80px var(--shadow-detail);
 }
 
 .detail-panel {
@@ -599,8 +617,8 @@ select option {
 
 .detail-panel h2,
 .detail-description,
-.detail-panel l1,
-.detail-panel labe,
+.detail-panel li,
+.detail-panel label,
 .vn-card h3 {
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -651,7 +669,7 @@ select option {
 .wine-settings {
     display: grid;
     gap: var(--space-3);
-    border: 1px solid var (--line);
+    border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: var(--bg-wine-settings);
     padding: var(--space-3);
@@ -681,4 +699,3 @@ select option {
         grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     }
 }
-
