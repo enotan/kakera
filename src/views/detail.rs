@@ -1,5 +1,6 @@
 use crate::models::{LaunchMode, VisualNovel};
 use crate::views::library::cover_source;
+use crate::vn_markup::{parse_description, DescriptionPart};
 use dioxus::prelude::*;
 use rfd::FileDialog;
 
@@ -50,6 +51,7 @@ pub fn DetailView(
     let mut description_is_editing = use_signal(|| false);
     let saved_description = vn.description.clone().unwrap_or_default();
     let description_value = description_draft.read().clone();
+    let description_parts = parse_description(saved_description.clone());
 
     rsx! {
         section { class: "detail-panel",
@@ -127,14 +129,17 @@ pub fn DetailView(
                             },
                         }
                     } else if saved_description.is_empty() {
-                        p {
+                        div {
                             class: "detail-desc empty",
                             "No description yet."
                         }
                     } else {
-                        p {
+                        div {
                             class: "detail-desc",
-                            "{saved_description}"
+
+                            for part in description_parts {
+                                DescriptionPartView { part }
+                            }
                         }
                     }
                 }
@@ -420,4 +425,56 @@ fn format_started_at(started_at: String) -> String {
     };
 
     parsed_time.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+///need a component because dioxus hates match or something
+#[component]
+fn DescriptionPartView(part: DescriptionPart) -> Element {
+    match part {
+        DescriptionPart::Text(text) => rsx! {
+            span { "{text}" }
+        },
+        DescriptionPart::Bold(text) => rsx! {
+            strong { "{text}" }
+        },
+        DescriptionPart::Italic(text) => rsx! {
+            em { "{text}" }
+        },
+        DescriptionPart::Link { label, url } => rsx! {
+            a {
+                href: "{url}",
+                target: "_blank",
+                "{label}"
+            }
+        },
+        DescriptionPart::Spoiler(parts) => rsx! {
+            SpoilerText { parts }
+        },
+ 
+    }
+}
+
+#[component]
+fn SpoilerText(parts: Vec<DescriptionPart>) -> Element {
+    let mut is_revealed = use_signal(|| false);
+
+    if *is_revealed.read() {
+        rsx! {
+            span { class: "spoiler-text revealed",
+                for part in parts {
+                    DescriptionPartView { part }
+                }
+            }
+        }
+    } else {
+        rsx! {
+            button {
+                class: "spoiler-text hidden",
+                onclick: move |_| {
+                    is_revealed.set(true);
+                },
+                "Spoiler"
+            }
+        }
+    }
 }

@@ -4,6 +4,7 @@ mod models;
 mod storage;
 mod views;
 mod vndb;
+mod vn_markup;
 
 use covers::cache_cover_image;
 use launcher::launch_executable;
