@@ -6,13 +6,22 @@ mod views;
 mod vndb;
 mod vn_markup;
 mod discord_presence;
+mod system;
 
 use covers::cache_cover_image;
 use launcher::launch_executable;
 use models::{AppSettings, LaunchMode, PlaySession, StoryRoute, VisualNovel};
-use storage::{save_settings, load_settings, add_play_session_to_library, load_library, save_library};
+use storage::{
+    kakera_data_dir,
+    save_settings,
+    load_settings,
+    add_play_session_to_library,
+    load_library,
+    save_library
+};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 use discord_presence::DiscordPresence;
+use system::open_folder;
 
 use chrono::Utc;
 use dioxus::prelude::*;
@@ -90,6 +99,11 @@ fn App() -> Element {
     let min_win = desktop.clone();
     let max_win = desktop.clone();
     let close_win = desktop.clone();
+
+    let data_dir_text = match kakera_data_dir() {
+        Ok(path) => path.display().to_string(),
+        Err(error) => format!("Could not find data folder: {error}"),
+    };
 
     rsx! {
 
@@ -593,6 +607,7 @@ fn App() -> Element {
                     } else {
                         SettingsView {
                             discord_rich_presence_enabled: settings.read().discord_rich_presence_enabled,
+                            data_dir_text,
 
                             on_discord_rich_presence_change: move |enabled| {
                                 settings.write().discord_rich_presence_enabled = enabled;
@@ -603,6 +618,19 @@ fn App() -> Element {
                                     println!("Could not save settings: {error}");
                                 }
                             },
+
+                            on_open_data_folder: move |_| {
+                                match kakera_data_dir() {
+                                    Ok(path) => {
+                                        if let Err(error) = open_folder(&path) {
+                                            println!("Could not open data folder: {error}");
+                                        }
+                                    }
+                                    Err(error) => {
+                                        println!("Could not find data folder: {error}");
+                                    }
+                                }
+                            }
                         }
                     }
 

@@ -3,22 +3,24 @@ use crate::models::{AppSettings, VisualNovel};
 use std::path::PathBuf;
 use std::{fs, io};
 
-/// Returns the path where Kakera stores the JSON file
-pub fn library_file_path() -> Result<PathBuf, io::Error> {
+///returns app data dir
+pub fn kakera_data_dir() -> Result<PathBuf, io::Error> {
     let data_dir = match dirs::data_dir() {
         Some(path) => path,
         None => {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                "could not find an app data directory.",
+                "Could not find an app data directory",
             ));
         }
     };
 
-    let kakera_dir = data_dir.join("kakera");
-    let library_file = kakera_dir.join("library.json");
+    Ok(data_dir.join("kakera"))
+}
 
-    Ok(library_file)
+/// Returns the path where Kakera stores the JSON file
+pub fn library_file_path() -> Result<PathBuf, io::Error> {
+    Ok(kakera_data_dir()?.join("library_json"))
 }
 
 ///Loads the library from disk, returns empty if the files don't exist yet
@@ -89,17 +91,7 @@ pub fn add_play_session_to_library(
 
 ///returns the path where settings are stored
 pub fn settings_file_path() -> Result<PathBuf, io::Error> {
-    let data_dir = match dirs::data_dir() {
-        Some(path) => path,
-        None => {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Could not find an app data directory."
-            ));
-        }
-    };
-
-    Ok(data_dir.join("kakera").join("settings.json"))
+    Ok(kakera_data_dir()?.join("settings.json"))
 }
 
 ///loads the settings

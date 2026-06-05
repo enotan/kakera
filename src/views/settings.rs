@@ -3,7 +3,9 @@ use dioxus::prelude::*;
 #[component]
 pub fn SettingsView(
     discord_rich_presence_enabled: bool,
+    data_dir_text: String,
     on_discord_rich_presence_change: EventHandler<bool>,
+    on_open_data_folder: EventHandler<()>
 ) -> Element {
     rsx! {
         section { class: "settings-panel",
@@ -30,6 +32,24 @@ pub fn SettingsView(
                     "Show the VN being you're playing on your Discord profile."
                 }
             }  
+
+            div { class: "settings-section",
+                h3 { "Data" }
+
+                div { class: "setting-row",
+                    span { "Data folder" }
+                    code { class: "setting-path", "{data_dir_text}" }
+                }
+
+                button {
+                    class: "fp-button",
+                    onclick: move |_| {
+                        on_open_data_folder.call(());
+                    },
+
+                    "Open data folder"
+                }
+            }
         }
     }
 }

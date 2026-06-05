@@ -878,9 +878,7 @@ select option {
     min-width: 0;
     height: 100%;
     overflow-y: auto;
-    border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
-    background: var(--bg-panel);
     box-shadow: 0 24px 80px var(--shadow-detail);
     padding: var(--space-5);
 }
@@ -898,6 +896,7 @@ select option {
     border-radius: var(--radius-md);
     background: var(--bg-panel-fade);
     padding: var(--space-4);
+    margin-bottom: var(--space-2);
 }
 
 .settings-section h3 {
@@ -910,7 +909,6 @@ select option {
 
 .setting-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--setting-checkbox-size);
     align-items: center;
     gap: var(--space-3);
     color: var(--text);
@@ -928,7 +926,7 @@ select option {
     gap: var(--space-3);
 }
 
-.playtime-summar > div {
+.playtime-summary > div {
     display: grid;
     gap: 4px;
     border: 1px solid var(--line);
