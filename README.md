@@ -32,6 +32,33 @@ Kakera currently supports:
 
 macOS isn't supported just yet, as I don't have access to a Mac. But if you own a Mac and want to see it on Mac, please help out!
 
+## Installation
+
+### Windows
+
+```
+Download the latest installer from Releases and that's it.
+```
+
+### All Linux Distributions
+
+```
+Download the latest .AppImage from Releases and that's it.
+```
+
+### Arch Linux
+
+```
+Hopefully coming to the AUR soon.
+```
+
+### NixOs
+
+```
+Hopefully coming as a flake soon.
+```
+
+
 ## Building from Source
 
 ### Dependencies

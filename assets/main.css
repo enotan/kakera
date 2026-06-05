@@ -141,7 +141,7 @@ button:hover {
 .icon-button:hover {
     background: transparent;
     border: 0;
-    color: var(--accent);
+    text-shadow: 0 0 8px var(--accent);
 }
 
 button:disabled {
@@ -190,6 +190,8 @@ img {
 }
 
 .app-frame {
+    position: relative;
+    isolation: isolate;
     height: 100vh;
     display: grid;
     grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
@@ -221,22 +223,25 @@ img {
     background-position: center;
     background-repeat: no-repeat;
     opacity: 0.35;
-    z-index: 0;
+    z-index: -1;
     pointer-events: none;
     transform: scale(1.5);
     mix-blend-mode: screen;
 }
 
 .sidebar {
+    position: relative;
+    overflow: hidden;
     height: 100%;
     border-right: 1px solid var(--line);
-    background: var(--bg-app-blue);
+    background: transparent;
     padding: 30px 0;
     margin: 0;
 }
 
 .logo {
     position: relative;
+    z-index: 1;
     width: calc(100% - 28px);
     margin: 0 auto 34px;
 }
@@ -249,6 +254,8 @@ img {
 }
 
 .sidebar-nav {
+    position: relative;
+    z-index: 1;
     width: 100%;
     display: grid;
     margin: 0;
@@ -377,6 +384,8 @@ img {
     font-size: 30px;
     line-height: 1;
     transform: translateY(-3px);
+    transition: 
+        text-shadow 0.18s ease;
 }
 
 .app-layout {
@@ -881,12 +890,14 @@ select option {
     border-radius: var(--radius-lg);
     box-shadow: 0 24px 80px var(--shadow-detail);
     padding: var(--space-5);
+    background: transparent;
 }
 
 .settings-panel h2 {
-    margin: 0 0 var(--space-5);
-    font-size: 28px;
-    line-height: 1.15;
+    margin: 0 0 var(--space-4);
+    font-size: 1.5rem;
+    color: var(--muted);
+    font-weight:  500;
 }
 
 .settings-section {
@@ -944,7 +955,6 @@ select option {
 .playtime-summary strong {
     color: var(--text);
     font-size: 1rem;
-    margin-left: var(--space-3);
 }
 
 @media (max-width: 1100px) {

@@ -109,11 +109,12 @@ fn App() -> Element {
 
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
-        main { class: "app-frame", style: "--app-bg-image: url('{BG_IMAGE}');",
+        main {
+            class: "app-frame",
+            style: "--app-bg-image: url('{BG_IMAGE}'); --stars-image: url('{STARS_IMAGE}');",
 
             div {
                 class: "star-overlay",
-                style: "--stars-image: url('{STARS_IMAGE}');",
             }
             //titlebar
             div { class: "win-titlebar",
