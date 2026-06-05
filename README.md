@@ -6,6 +6,8 @@ Kakera is a visual novel library, launcher, and playtime tracker built with Rust
 
 ![Screenshot preview](./assets/screenshot.png)
 
+![Rich Presence preview](./assets/richpresencess.png)
+
 ## Overview
 
 Kakera works as a hub for launching and keeping track of all your visual novels.
@@ -65,20 +67,20 @@ Hopefully coming as a flake soon.
 
 #### Arch Linux Based Systems
 
-```
+```bash
 sudo pacman -S webkit2gtk-4.1 base-devel curl wget file openssl appmenu-gtk-module libappindicator-gtk3 librsvg xdotool xdg-utils rust cargo dioxus-cli
 ```
 
 #### Debian Based Systems
 
-```
+```bash
 sudo apt install rustc cargo libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xdg-utils lld
 cargo install dioxus-cli
 ```
 
 #### Fedora Based Systems
 
-```
+```bash
 sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file libxdo-devel libappindicator-gtk3-devel librsvg2-devel xdg-utils rust cargo
 cargo install --locked dioxus-cli
 ```
@@ -95,7 +97,7 @@ discord # obviously. vesktop, betterdiscord, etc should all work too
 
 ### Building
 
-```
+```bash
 git clone https://github.com/enotan/kakera
 
 cd kakera
