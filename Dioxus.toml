@@ -24,3 +24,4 @@ script = []
 identifier = "com.enotan"
 
 publisher = "enotan"
+icon = ["assets/favicon.ico"]

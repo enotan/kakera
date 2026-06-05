@@ -25,7 +25,7 @@ use system::open_folder;
 
 use chrono::Utc;
 use dioxus::prelude::*;
-use dioxus::desktop::{Config, WindowBuilder};
+use dioxus::desktop::{Config, WindowBuilder, icon_from_path};
 use std::thread;
 use std::time::Instant;
 
@@ -35,14 +35,25 @@ const LOGO_IMAGE: Asset = asset!("/assets/kakeralogo.png");
 const STARS_IMAGE: Asset = asset!("/assets/stars.jpg");
 
 fn main() {
+    let config = Config::new().with_window(
+        WindowBuilder::new()
+            .with_title("Kakera")
+            .with_decorations(false),
+    );
+
+    let config = match icon_from_path(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/assets/favicon.ico"),
+        None,
+    ) {
+        Ok(icon) => config.with_icon(icon),
+        Err(error) => {
+            eprintln!("Could not load app icon: {error}");
+            config
+        }
+    };
+
     dioxus::LaunchBuilder::desktop()
-        .with_cfg(
-            Config::new().with_window(
-                WindowBuilder::new()
-                    .with_title("Kakera")
-                    .with_decorations(false),
-            ),
-        )
+        .with_cfg(config)
         .launch(App);
 }
 
