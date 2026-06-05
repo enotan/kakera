@@ -55,6 +55,14 @@ pub fn DetailView(
     let description_value = description_draft.read().clone();
     let description_parts = parse_description(saved_description.clone());
 
+    let total_playtime_seconds: u64 = vn
+        .play_sessions
+        .iter()
+        .map(|session| session.duration_seconds)
+        .sum();
+
+    let total_playtime_text = format_playtime(total_playtime_seconds);
+
     rsx! {
         section { class: "detail-panel",
 
@@ -278,8 +286,21 @@ pub fn DetailView(
             }
 
             //play sessions
+            h3 { "Playtime" }
+            
+            div { class: "playtime-summary",
+                div {
+                    span { class: "stat-label", "Total playtime" }
+                    strong { "{total_playtime_text}" }
+                }
+
+                div {
+                    span { class: "stat-label", "Sessions recorded" }
+                    strong { "{vn.play_sessions.len()}" }
+                }
+            }
+
             h3 { "Play sessions" }
-            p { "Sessions recorded: {vn.play_sessions.len()}" }
 
             ul {
                 for session in vn.play_sessions.clone() {
@@ -422,6 +443,17 @@ fn format_started_at(started_at: String) -> String {
     };
 
     parsed_time.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+fn format_playtime(total_seconds: u64) -> String {
+    let hours = total_seconds as f64 / 3600.0;
+
+    if hours < 1.0 {
+        let minutes = total_seconds / 60;
+        format!("{minutes} min")
+    } else {
+        format!("{hours:.1} hrs")
+    }
 }
 
 ///need a component because dioxus hates match or something
