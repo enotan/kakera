@@ -86,7 +86,7 @@ pub fn SettingsView(
                 
                 
                 p { class: "setting-help",
-                    "Show the VN being you're playing on your Discord profile."
+                    "Show the VN being played on your Discord profile."
                 }
             }  
 
