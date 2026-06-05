@@ -1,7 +1,7 @@
-use crate::models::VisualNovel;
 use chrono::{DateTime, Utc};
 use discord_rich_presence::error::Error as DiscordError;
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+use crate::models::{AppSettings, VisualNovel};
 
 const DISCORD_APP_ID: &str = "1512156673358172312";
 const DISCORD_ACTIVITY_NAME: &str = "Kakera";
@@ -15,6 +15,7 @@ impl DiscordPresence {
     pub fn start_for_vn(
         vn: &VisualNovel,
         started_at: DateTime<Utc>,
+        settings: AppSettings,
     ) -> Result<Self, DiscordError> {
         let mut client = DiscordIpcClient::new(DISCORD_APP_ID);
         client.connect()?;
@@ -23,17 +24,29 @@ impl DiscordPresence {
 
         let mut assets = activity::Assets::new().large_text(vn.title.clone());
 
-        if let Some(cover_url) = vn.cover_url.clone() {
+        let status_text = if settings.discord_show_active_route {
+            match vn.active_route.clone() {
+                Some(route_name) => format!("Reading the {route_name} route."),
+                None => settings.discord_status_text.clone(),
+            }
+        } else {
+            settings.discord_status_text.clone()
+        };
+        
+        let cover_image = if !settings.discord_custom_cover_url.is_empty() {
+            Some(settings.discord_custom_cover_url.clone())
+        } else {
+            vn.cover_url.clone()
+        };
+
+        if let Some(cover_url) = cover_image {
             assets = assets.large_image(cover_url);
         }
 
         let activity = activity::Activity::new()
             .name(DISCORD_ACTIVITY_NAME)
             .details(format!("Playing {}", vn.title))
-            .state(match vn.active_route.clone() {
-                Some(route_name) => format!("Reading the {route_name} route."),
-                None => "Reading".to_string(),
-            })
+            .state(status_text)
             .timestamps(timestamps)
             .assets(assets)
             .activity_type(activity::ActivityType::Playing);

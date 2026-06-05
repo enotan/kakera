@@ -31,6 +31,7 @@ pub fn DetailView(
         None => String::new(),
     };
 
+    let mut executable_path_draft = use_signal(|| executable_path_text.clone());
     let wine_prefix_text = vn.wine_prefix.clone().unwrap_or_default();
     let wine_locale_text = vn.wine_locale.clone().unwrap_or_default();
 
@@ -40,6 +41,7 @@ pub fn DetailView(
     let mut wine_locale_draft = use_signal(|| wine_locale_text.clone());
     let mut launch_arguments_draft = use_signal(|| vn.launch_arguments.clone());
 
+    let executable_path_value = executable_path_draft.read().clone();
     let wine_prefix_value = wine_prefix_draft.read().clone();
     let wine_locale_value = wine_locale_draft.read().clone();
     let launch_arguments_value = launch_arguments_draft.read().clone();
@@ -150,10 +152,14 @@ pub fn DetailView(
                 "Executable path"
 
                 input {
-                    value: "{executable_path_text}",
+                    value: "{executable_path_value}",
 
                     oninput: move |event| {
-                        on_executable_path_change.call((vn.id, event.value()));
+                        executable_path_draft.set(event.value());
+                    },
+
+                    onblur: move |_| {
+                        on_executable_path_change.call((vn.id, executable_path_draft.read().clone()));
                     },
                 }
             }
@@ -168,8 +174,9 @@ pub fn DetailView(
                         .pick_file();
 
                     if let Some(path) = picked_file {
-                        on_executable_path_change
-                            .call((vn.id, path.to_string_lossy().to_string()));
+                        let path_text = path.to_string_lossy().to_string();
+                        executable_path_draft.set(path_text.clone());
+                        on_executable_path_change.call((vn.id, path_text));
                     }
                 },
 

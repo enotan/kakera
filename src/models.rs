@@ -72,12 +72,28 @@ pub struct PlaySession {
 pub struct AppSettings {
     #[serde(default)]
     pub discord_rich_presence_enabled: bool,
+
+    #[serde(default = "default_discord_status_text")]
+    pub discord_status_text: String,
+
+    #[serde(default)]
+    pub discord_show_active_route: bool,
+
+    #[serde(default)]
+    pub discord_custom_cover_url: String,
+}
+
+fn default_discord_status_text() -> String {
+    "Reading".to_string()
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             discord_rich_presence_enabled: true,
+            discord_status_text: default_discord_status_text(),
+            discord_show_active_route: true,
+            discord_custom_cover_url: String::new(),
         }
     }
 }

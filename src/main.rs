@@ -315,6 +315,7 @@ fn App() -> Element {
                                 //a sidebar that shows details for the vn
                                 if let Some(vn) = selected_vn {
                                     DetailView {
+                                        key: "{vn.id}",
                                         vn,
                                         on_notes_change: move |(id, notes): (u64, String)| {
                                             update_vn_and_save(
@@ -404,7 +405,11 @@ fn App() -> Element {
                                                                     let vn_id = presence_vn.id;
 
                                                                     let discord_presence = if settings.read().discord_rich_presence_enabled {
-                                                                        match DiscordPresence::start_for_vn(&presence_vn, started_time) {
+                                                                        match DiscordPresence::start_for_vn(
+                                                                            &presence_vn,
+                                                                            started_time,
+                                                                            settings.read().clone(),
+                                                                            ) {
                                                                             Ok(presence) => Some(presence),
                                                                             Err(error) => {
                                                                                 println!("Could not start Discord Rich Presence: {error}");
@@ -630,6 +635,25 @@ fn App() -> Element {
                                         println!("Could not find data folder: {error}");
                                     }
                                 }
+                            },
+
+                            discord_status_text: settings.read().discord_status_text.clone(),
+                            discord_show_active_route: settings.read().discord_show_active_route,
+                            discord_custom_cover_url: settings.read().discord_custom_cover_url.clone(),
+
+                            on_discord_status_text_change: move |status_text| {
+                                settings.write().discord_status_text = status_text;
+                                save_settings_or_log(&settings);
+                            },
+
+                            on_discord_show_active_route_change: move |enabled| {
+                                settings.write().discord_show_active_route = enabled;
+                                save_settings_or_log(&settings);
+                            },
+
+                            on_discord_custom_cover_url_change: move |cover_url| {
+                                settings.write().discord_custom_cover_url = cover_url;
+                                save_settings_or_log(&settings);
                             }
                         }
                     }
@@ -665,5 +689,14 @@ fn save_vns_or_log(vns: &Signal<Vec<VisualNovel>>, error_message: String) {
 
     if let Err(error) = save_result {
         println!("{error_message}: {error}");
+    }
+}
+
+///saves the settings or prints error
+fn save_settings_or_log(settings: &Signal<AppSettings>) {
+    let save_result = save_settings(settings.read().clone());
+
+    if let Err(error) = save_result {
+        println!("Could not save settings: {error}");
     }
 }
