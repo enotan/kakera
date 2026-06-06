@@ -21,7 +21,7 @@ use system::open_folder;
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
-use dioxus::desktop::{Config, WindowBuilder, icon_from_memory};
+use dioxus::desktop::{Config, WindowBuilder, icon_from_memory, tao::window::ResizeDirection};
 use dioxus::prelude::*;
 use std::thread;
 use std::time::Instant;
@@ -55,6 +55,24 @@ fn main() {
 enum AppView {
     Library,
     Settings,
+}
+
+///for resizing the window on linux
+#[component]
+fn ResizeHandle(class: String, direction: ResizeDirection) -> Element {
+    let window = dioxus::desktop::window();
+
+    rsx! {
+        div {
+            class: "resize-handle {class}",
+
+            onmousedown: move |_| {
+                if let Err(error) = window.drag_resize_window(direction) {
+                    eprintln!("Could not begin resizing wndow: {error}");
+                }
+            },
+        }
+    }
 }
 
 #[component]
@@ -120,6 +138,40 @@ fn App() -> Element {
         main {
             class: "app-frame",
             style: "--app-bg-image: url('{BG_IMAGE}'); --stars-image: url('{STARS_IMAGE}');",
+
+            //window resize handles
+            ResizeHandle {
+                class: "resize-north",
+                direction: ResizeDirection::North,
+            }
+            ResizeHandle {
+                class: "resize-north-east",
+                direction: ResizeDirection::NorthEast,
+            }
+            ResizeHandle {
+                class: "resize-east",
+                direction: ResizeDirection::East,
+            }
+            ResizeHandle {
+                class: "resize-south-east",
+                direction: ResizeDirection::SouthEast,
+            }
+            ResizeHandle {
+                class: "resize-south",
+                direction: ResizeDirection::South,
+            }
+            ResizeHandle {
+                class: "resize-south-west",
+                direction: ResizeDirection::SouthWest,
+            }
+            ResizeHandle {
+                class: "resize-west",
+                direction: ResizeDirection::West,
+            }
+            ResizeHandle {
+                class: "resize-north-west",
+                direction: ResizeDirection::NorthWest,
+            }
 
             div { class: "star-overlay" }
             //titlebar

@@ -990,3 +990,74 @@ select option {
         grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     }
 }
+
+.resize-handle {
+    position: absolute;
+    z-index: 1000;
+}
+
+.resize-north,
+.resize-south {
+    left: 8px;
+    right: 8px;
+    height: 6px;
+}
+
+.resize-east,
+.resize-west {
+    top: 8px;
+    bottom: 8px;
+    width: 6px;
+}
+
+.resize-north {
+    top: 0;
+    cursor: n-resize;
+}
+
+.resize-south {
+    bottom: 0;
+    cursor: s-resize;
+}
+
+.resize-east {
+    right: 0;
+    cursor: e-resize;
+}
+
+.resize-west {
+    left: 0;
+    cursor: w-resize;
+}
+
+.resize-north-east,
+.resize-north-west,
+.resize-south-east,
+.resize-south-west {
+    width: 10px;
+    height: 10px;
+}
+
+.resize-north-east {
+    top: 0;
+    right: 0;
+    cursor: ne-resize;
+}
+
+.resize-north-west {
+    top: 0;
+    left: 0;
+    cursor: nw-resize;
+}
+
+.resize-south-east {
+    right: 0;
+    bottom: 0;
+    cursor: se-resize;
+}
+
+.resize-south-west {
+    bottom: 0;
+    left: 0;
+    cursor: sw-resize;
+}
