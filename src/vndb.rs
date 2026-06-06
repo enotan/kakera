@@ -29,6 +29,7 @@ struct VndbSearchResponse {
 struct VndbSearchRequest {
     pub filters: serde_json::Value,
     pub fields: String,
+    pub sort: String,
     pub results: u32,
 }
 
@@ -41,7 +42,8 @@ pub async fn search_vns(query: String) -> Result<Vec<VndbSearchResult>, reqwest:
     let request_body = VndbSearchRequest {
         filters: serde_json::json!(["search", "=", query]),
         fields: "id, title, image.url, description, released".to_string(),
-        results: 10,
+        sort: "searchrank".to_string(),
+        results: 20,
     };
 
     let response = client
