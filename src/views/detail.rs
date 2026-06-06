@@ -1,6 +1,7 @@
 use crate::models::{LaunchMode, VisualNovel, StoryRoute};
 use crate::views::library::cover_source;
 use crate::vn_markup::{parse_description, DescriptionPart};
+use crate::wine::WineRunner;
 use dioxus::prelude::*;
 use rfd::FileDialog;
 
@@ -8,12 +9,14 @@ use rfd::FileDialog;
 #[component]
 pub fn DetailView(
     vn: VisualNovel,
+    wine_runners: Vec<WineRunner>,
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
     on_executable_path_change: EventHandler<(u64, String)>,
     on_launch: EventHandler<u64>,
     on_launch_mode_change: EventHandler<(u64, LaunchMode)>,
+    on_wine_binary_change: EventHandler<(u64, String)>,
     on_delete: EventHandler<u64>,
     on_wine_prefix_change: EventHandler<(u64, String)>,
     on_wine_locale_change: EventHandler<(u64, String)>,
@@ -40,6 +43,10 @@ pub fn DetailView(
     let mut wine_prefix_draft = use_signal(|| wine_prefix_text.clone());
     let mut wine_locale_draft = use_signal(|| wine_locale_text.clone());
     let mut launch_arguments_draft = use_signal(|| vn.launch_arguments.clone());
+
+    let wine_binary_text = vn.wine_binary.clone().unwrap_or_default();
+    let mut wine_binary_draft = use_signal(|| wine_binary_text.clone());
+    let wine_binary_value = wine_binary_draft.read().clone();
 
     let executable_path_value = executable_path_draft.read().clone();
     let wine_prefix_value = wine_prefix_draft.read().clone();
@@ -212,6 +219,61 @@ pub fn DetailView(
                 div { class: "wine-settings",
 
                     h3 { "Wine Settings" }
+
+                    label {
+                        "Wine binary / runner"
+
+                        select {
+                            value: "{wine_binary_value}",
+
+                            onchange: move |event| {
+                                let binary_path = event.value();
+
+                                wine_binary_draft.set(binary_path.clone());
+                                on_wine_binary_change.call((vn.id, binary_path));
+                            },
+
+                            option {
+                                value: "",
+                                "Default Wine from PATH"
+                            }
+
+                            for runner in wine_runners.clone() {
+                                option {
+                                    value: "{runner.binary_path}",
+                                    "{runner.name}"
+                                }
+                            }
+
+                            if !wine_binary_value.is_empty()
+                                && !wine_runners
+                                    .iter()
+                                    .any(|runner| runner.binary_path == wine_binary_value)
+                            {
+                                option {
+                                    value: "{wine_binary_value}",
+                                    "Custom runner"
+                                }
+                            }
+                        }
+                    }
+
+                    button {
+                        class: "fp-button",
+
+                        onclick: move |_| {
+                            let picked_file = FileDialog::new().pick_file();
+
+                            if let Some(path) = picked_file {
+                                let path_text = path.to_string_lossy().to_string();
+
+                                wine_binary_draft.set(path_text.clone());
+                                on_wine_binary_change.call((vn.id, path_text));
+                            }
+                        },
+
+                        "Choose Wine binary"
+                    }
 
                     label {
                         "Wine prefix"

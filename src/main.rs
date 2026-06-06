@@ -7,6 +7,7 @@ mod vndb;
 mod vn_markup;
 mod discord_presence;
 mod system;
+mod wine;
 
 use covers::cache_cover_image;
 use launcher::launch_executable;
@@ -35,6 +36,7 @@ const LOGO_IMAGE: Asset = asset!("/assets/kakeralogo.png");
 const STARS_IMAGE: Asset = asset!("/assets/stars.jpg");
 
 fn main() {
+
     let config = Config::new().with_window(
         WindowBuilder::new()
             .with_title("Kakera")
@@ -112,6 +114,8 @@ fn App() -> Element {
         Ok(path) => path.display().to_string(),
         Err(error) => format!("Could not find data folder: {error}"),
     };
+
+    let wine_runners = use_hook(wine::detect_wine_runners);
 
     rsx! {
 
@@ -263,6 +267,7 @@ fn App() -> Element {
                                                 cover_path: new_vn.cover_path,
                                                 executable_path: None,
                                                 launch_mode: LaunchMode::default(),
+                                                wine_binary: None,
                                                 wine_prefix: None,
                                                 wine_locale: None,
                                                 launch_arguments: String::new(),
@@ -326,6 +331,7 @@ fn App() -> Element {
                                     DetailView {
                                         key: "{vn.id}",
                                         vn,
+                                        wine_runners: wine_runners.clone(),
                                         on_notes_change: move |(id, notes): (u64, String)| {
                                             update_vn_and_save(
                                                 &mut vns,
@@ -403,6 +409,7 @@ fn App() -> Element {
                                                             match launch_executable(
                                                                 path,
                                                                 vn.launch_mode,
+                                                                vn.wine_binary,
                                                                 vn.wine_prefix,
                                                                 vn.wine_locale,
                                                                 vn.launch_arguments,
@@ -499,6 +506,24 @@ fn App() -> Element {
                                                     vn.launch_mode = launch_mode;
                                                 },
                                                 "Could not save launch mode".to_string(),
+                                            );
+                                        },
+
+                                        //when changing wine binary
+                                        on_wine_binary_change: move |(id, binary): (u64, String)| {
+                                            let wine_binary = if binary.is_empty() {
+                                                None
+                                            } else {
+                                                Some(binary)
+                                            };
+
+                                            update_vn_and_save(
+                                                &mut vns,
+                                                id,
+                                                move |vn| {
+                                                    vn.wine_binary = wine_binary;
+                                                },
+                                                "Could not save Wine binary".to_string(),
                                             );
                                         },
 

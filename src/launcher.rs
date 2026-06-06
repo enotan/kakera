@@ -8,6 +8,7 @@ use crate::models::LaunchMode;
 pub fn launch_executable(
     executable_path: String,
     launch_mode: LaunchMode,
+    wine_binary: Option<String>,
     wine_prefix: Option<String>,
     wine_locale: Option<String>,
     launch_arguments: String,
@@ -18,7 +19,8 @@ pub fn launch_executable(
     let child: Child = match launch_mode {
         LaunchMode::Native => Command::new(path).spawn()?,
         LaunchMode::Wine => {
-            let mut command = Command::new("wine");
+            let wine_command = wine_binary.unwrap_or_else(|| "wine".to_string());
+            let mut command = Command::new(wine_command);
 
             if let Some(prefix) = wine_prefix {
                 command.env("WINEPREFIX", prefix);

@@ -26,6 +26,9 @@ pub struct VisualNovel {
     pub launch_mode: LaunchMode,
 
     #[serde(default)]
+    pub wine_binary: Option<String>,
+
+    #[serde(default)]
     pub wine_prefix: Option<String>,
 
     #[serde(default)]

@@ -957,6 +957,15 @@ select option {
     font-size: 1rem;
 }
 
+.detail-panel select,
+.wine-settings select,
+.wine-settings label {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+
 @media (max-width: 1100px) {
     .app-layout {
         grid-template-columns: 1fr;
