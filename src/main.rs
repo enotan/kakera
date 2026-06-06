@@ -1,32 +1,28 @@
 mod covers;
+mod discord_presence;
 mod launcher;
 mod models;
 mod storage;
-mod views;
-mod vndb;
-mod vn_markup;
-mod discord_presence;
 mod system;
+mod views;
+mod vn_markup;
+mod vndb;
 mod wine;
 
 use covers::cache_cover_image;
-use launcher::launch_executable;
-use models::{AppSettings, LaunchMode, PlaySession, StoryRoute, VisualNovel};
-use storage::{
-    kakera_data_dir,
-    save_settings,
-    load_settings,
-    add_play_session_to_library,
-    load_library,
-    save_library
-};
-use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 use discord_presence::DiscordPresence;
+use launcher::launch_executable;
+use models::{AppSettings, LaunchMode, PlaySession, StoryRoute, VisualNovel, default_umu_game_id};
+use storage::{
+    add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
+    save_settings,
+};
 use system::open_folder;
+use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
-use dioxus::prelude::*;
 use dioxus::desktop::{Config, WindowBuilder, icon_from_memory};
+use dioxus::prelude::*;
 use std::thread;
 use std::time::Instant;
 
@@ -36,7 +32,6 @@ const LOGO_IMAGE: Asset = asset!("/assets/kakeralogo.png");
 const STARS_IMAGE: Asset = asset!("/assets/stars.jpg");
 
 fn main() {
-
     let config = Config::new().with_window(
         WindowBuilder::new()
             .with_title("Kakera")
@@ -116,6 +111,7 @@ fn App() -> Element {
     };
 
     let wine_runners = use_hook(wine::detect_wine_runners);
+    let proton_runners = use_hook(wine::detect_proton_runners);
 
     rsx! {
 
@@ -125,9 +121,7 @@ fn App() -> Element {
             class: "app-frame",
             style: "--app-bg-image: url('{BG_IMAGE}'); --stars-image: url('{STARS_IMAGE}');",
 
-            div {
-                class: "star-overlay",
-            }
+            div { class: "star-overlay" }
             //titlebar
             div { class: "win-titlebar",
 
@@ -271,6 +265,8 @@ fn App() -> Element {
                                                 wine_prefix: None,
                                                 wine_locale: None,
                                                 launch_arguments: String::new(),
+                                                proton_path: None,
+                                                umu_game_id: default_umu_game_id(),
                                                 notes: String::new(),
                                                 routes: Vec::new(),
                                                 active_route: None,
@@ -332,6 +328,7 @@ fn App() -> Element {
                                         key: "{vn.id}",
                                         vn,
                                         wine_runners: wine_runners.clone(),
+                                        proton_runners: proton_runners.clone(),
                                         on_notes_change: move |(id, notes): (u64, String)| {
                                             update_vn_and_save(
                                                 &mut vns,
@@ -412,6 +409,8 @@ fn App() -> Element {
                                                                 vn.wine_binary,
                                                                 vn.wine_prefix,
                                                                 vn.wine_locale,
+                                                                vn.proton_path,
+                                                                vn.umu_game_id,
                                                                 vn.launch_arguments,
                                                             ) {
                                                                 Ok(mut child) => {
@@ -420,12 +419,15 @@ fn App() -> Element {
                                                                     let started_timer = Instant::now();
                                                                     let vn_id = presence_vn.id;
 
-                                                                    let discord_presence = if settings.read().discord_rich_presence_enabled {
+                                                                    let discord_presence = if settings
+                                                                        .read()
+                                                                        .discord_rich_presence_enabled
+                                                                    {
                                                                         match DiscordPresence::start_for_vn(
                                                                             &presence_vn,
                                                                             started_time,
                                                                             settings.read().clone(),
-                                                                            ) {
+                                                                        ) {
                                                                             Ok(presence) => Some(presence),
                                                                             Err(error) => {
                                                                                 println!("Could not start Discord Rich Presence: {error}");
@@ -435,23 +437,17 @@ fn App() -> Element {
                                                                     } else {
                                                                         None
                                                                     };
-
-                                                                    //use new thread so not to freeze the app
                                                                     thread::spawn(move || {
                                                                         let wait_result = child.wait();
-
                                                                         match wait_result {
                                                                             Ok(_status) => {
-                                                                                let duration_seconds =
-                                                                                    started_timer.elapsed().as_secs();
-
+                                                                                let duration_seconds = started_timer.elapsed().as_secs();
                                                                                 let play_session = PlaySession {
                                                                                     vn_id,
                                                                                     started_at: started_at.clone(),
                                                                                     duration_seconds,
                                                                                     notes: None,
                                                                                 };
-
                                                                                 let save_result = add_play_session_to_library(
                                                                                     vn_id,
                                                                                     play_session,
@@ -462,7 +458,6 @@ fn App() -> Element {
                                                                                             "VN {vn_id} closed after {duration_seconds} seconds and was saved.",
                                                                                         );
                                                                                     }
-
                                                                                     Err(error) => {
                                                                                         println!("Could not save measured play session: {error}");
                                                                                     }
@@ -472,13 +467,11 @@ fn App() -> Element {
                                                                                 println!("Could not monitor VN process: {error}");
                                                                             }
                                                                         }
-
                                                                         if let Some(presence) = discord_presence {
                                                                             if let Err(error) = presence.clear() {
                                                                                 println!("Could not clear Discord Rich Presence: {error}");
                                                                             }
                                                                         }
-
                                                                     });
                                                                 }
                                                                 Err(error) => {
@@ -511,12 +504,7 @@ fn App() -> Element {
 
                                         //when changing wine binary
                                         on_wine_binary_change: move |(id, binary): (u64, String)| {
-                                            let wine_binary = if binary.is_empty() {
-                                                None
-                                            } else {
-                                                Some(binary)
-                                            };
-
+                                            let wine_binary = if binary.is_empty() { None } else { Some(binary) };
                                             update_vn_and_save(
                                                 &mut vns,
                                                 id,
@@ -524,6 +512,37 @@ fn App() -> Element {
                                                     vn.wine_binary = wine_binary;
                                                 },
                                                 "Could not save Wine binary".to_string(),
+                                            );
+                                        },
+
+                                        //when changing proton
+                                        on_proton_path_change: move |(id, path): (u64, String)| {
+                                            let proton_path = if path.is_empty() { None } else { Some(path) };
+                                            update_vn_and_save(
+                                                &mut vns,
+                                                id,
+                                                move |vn| {
+                                                    vn.proton_path = proton_path;
+                                                },
+                                                "Could not save Proton path".to_string(),
+                                            );
+                                        },
+
+                                        //when changing umu game id
+                                        on_umu_game_id_change: move |(id, game_id): (u64, String)| {
+                                            let game_id = if game_id.trim().is_empty() {
+                                                default_umu_game_id()
+                                            } else {
+                                                game_id
+                                            };
+
+                                            update_vn_and_save(
+                                                &mut vns,
+                                                id,
+                                                move |vn| {
+                                                    vn.umu_game_id = game_id;
+                                                },
+                                                "Could not save UMU game ID".to_string(),
                                             );
                                         },
 
@@ -688,7 +707,7 @@ fn App() -> Element {
                             on_discord_custom_cover_url_change: move |cover_url| {
                                 settings.write().discord_custom_cover_url = cover_url;
                                 save_settings_or_log(&settings);
-                            }
+                            },
                         }
                     }
 

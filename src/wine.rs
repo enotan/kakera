@@ -9,6 +9,13 @@ pub struct WineRunner {
     pub binary_path: String,
 }
 
+///a proton runner detected on the system
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProtonRunner {
+    pub name: String,
+    pub path: String,
+}
+
 ///finds wine runners
 pub fn detect_wine_runners() -> Vec<WineRunner> {
     let mut runners = Vec::new();
@@ -29,6 +36,29 @@ pub fn detect_wine_runners() -> Vec<WineRunner> {
 
     for directory in runner_directories {
         add_runners_from_directory(&mut runners, &directory);
+    }
+
+    runners
+}
+
+///find proton runners
+pub fn detect_proton_runners() -> Vec<ProtonRunner> {
+    let mut runners = Vec::new();
+
+    let home_dir = match env::var_os("HOME") {
+        Some(home) => PathBuf::from(home),
+        None => return runners,
+    };
+
+    let proton_directories = [
+        home_dir.join(".local/share/Steam/compatibilitytools.d"),
+        home_dir.join(".steam/root/compatibilitytools.d"),
+        home_dir.join(".var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d"),
+        home_dir.join(".steam/debian-installation/compatibilitytools.d"),
+    ];
+
+    for directory in proton_directories {
+        add_proton_runners_from_directory(&mut runners, &directory);
     }
 
     runners
@@ -60,6 +90,37 @@ fn add_runners_from_directory(runners: &mut Vec<WineRunner>, directory: &Path) {
                 binary_path: wine_binary.to_string_lossy().to_string(),
             },
         );
+    }
+}
+
+fn add_proton_runners_from_directory(runners: &mut Vec<ProtonRunner>, directory: &Path) {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let proton_directory = entry.path();
+
+        if !proton_directory.join("proton").is_file() {
+            continue;
+        }
+
+        let runner_name = match proton_directory.file_name() {
+            Some(name) => name.to_string_lossy().to_string(),
+            None => continue,
+        };
+
+        let proton_path = proton_directory.to_string_lossy().to_string();
+
+        let already_exists = runners.iter().any(|existing| existing.path == proton_path);
+
+        if !already_exists {
+            runners.push(ProtonRunner {
+                name: runner_name,
+                path: proton_path,
+            });
+        }
     }
 }
 

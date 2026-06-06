@@ -6,6 +6,7 @@ use std::cmp::PartialEq;
 pub enum LaunchMode {
     Native,
     Wine,
+    Proton,
 }
 
 ///A visual novel stored in the library
@@ -35,6 +36,12 @@ pub struct VisualNovel {
     pub wine_locale: Option<String>,
 
     #[serde(default)]
+    pub proton_path: Option<String>,
+
+    #[serde(default = "default_umu_game_id")]
+    pub umu_game_id: String,
+
+    #[serde(default)]
     pub launch_arguments: String,
 
     pub notes: String,
@@ -42,7 +49,7 @@ pub struct VisualNovel {
 
     #[serde(default)]
     pub active_route: Option<String>,
-    
+
     pub play_sessions: Vec<PlaySession>,
 }
 
@@ -50,6 +57,10 @@ impl Default for LaunchMode {
     fn default() -> Self {
         LaunchMode::Native
     }
+}
+
+pub fn default_umu_game_id() -> String {
+    "umu-default".to_string()
 }
 
 ///A vn route

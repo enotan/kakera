@@ -91,6 +91,9 @@ cargo install --locked dioxus-cli
 # For running Windows visual novels on Linux
 wine
 
+# For using Proton
+umu-launcher
+
 # For Discord Rich Presence
 discord # obviously. vesktop, betterdiscord, etc should all work too
 ```

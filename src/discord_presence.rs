@@ -1,7 +1,7 @@
+use crate::models::{AppSettings, VisualNovel};
 use chrono::{DateTime, Utc};
 use discord_rich_presence::error::Error as DiscordError;
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
-use crate::models::{AppSettings, VisualNovel};
+use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 
 const DISCORD_APP_ID: &str = "1512156673358172312";
 const DISCORD_ACTIVITY_NAME: &str = "Kakera";
@@ -32,7 +32,7 @@ impl DiscordPresence {
         } else {
             settings.discord_status_text.clone()
         };
-        
+
         let cover_image = if !settings.discord_custom_cover_url.is_empty() {
             Some(settings.discord_custom_cover_url.clone())
         } else {
@@ -50,7 +50,6 @@ impl DiscordPresence {
             .timestamps(timestamps)
             .assets(assets)
             .activity_type(activity::ActivityType::Playing);
-
 
         client.set_activity(activity)?;
 

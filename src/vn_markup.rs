@@ -5,10 +5,7 @@ pub enum DescriptionPart {
     Text(String),
     Bold(String),
     Italic(String),
-    Link {
-        label: String,
-        url: String,
-    },
+    Link { label: String, url: String },
     Spoiler(Vec<DescriptionPart>),
 }
 

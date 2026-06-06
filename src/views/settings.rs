@@ -37,7 +37,7 @@ pub fn SettingsView(
                         onchange: move |event| {
                             on_discord_rich_presence_change.call(event.checked());
                         },
-                    } 
+                    }
                 }
 
                 label { class: "setting-row",
@@ -79,16 +79,14 @@ pub fn SettingsView(
                             discord_custom_cover_url_draft.set(event.value());
                         },
                         onblur: move |_| {
-                            on_discord_custom_cover_url_change.call(discord_custom_cover_url_draft.read().clone());
+                            on_discord_custom_cover_url_change
+                                .call(discord_custom_cover_url_draft.read().clone());
                         },
                     }
                 }
-                
-                
-                p { class: "setting-help",
-                    "Show the VN being played on your Discord profile."
-                }
-            }  
+
+                p { class: "setting-help", "Show the VN being played on your Discord profile." }
+            }
 
             div { class: "settings-section",
                 h3 { "Data" }
