@@ -25,7 +25,7 @@ use system::open_folder;
 
 use chrono::Utc;
 use dioxus::prelude::*;
-use dioxus::desktop::{Config, WindowBuilder, icon_from_path};
+use dioxus::desktop::{Config, WindowBuilder, icon_from_memory};
 use std::thread;
 use std::time::Instant;
 
@@ -41,10 +41,7 @@ fn main() {
             .with_decorations(false),
     );
 
-    let config = match icon_from_path(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/assets/favicon.ico"),
-        None,
-    ) {
+    let config = match icon_from_memory(include_bytes!("../assets/favicon.ico")) {
         Ok(icon) => config.with_icon(icon),
         Err(error) => {
             eprintln!("Could not load app icon: {error}");
