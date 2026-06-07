@@ -27,9 +27,8 @@ mobile = ["dioxus/mobile"]
 product-name = "Kakera"
 identifier = "com.enotan.kakera"
 icons = ["assets/favicon.png", "assets/favicon.ico"]
-
 before-packaging-command = "dx build --release"
-binaries-dir = "target/x86_64-unknown-linux-gnu/desktop-release"
+binaries-dir = "target/dx/kakera/release/linux/app"
 
 [package.metadata.packager.appimage]
 libs = [
@@ -37,6 +36,10 @@ libs = [
     "WebKitWebProcess",
     "libwebkit2gtkinjectedbundle.so",
 ]
+
+files = {
+    "target/dx/kakera/release/linux/app/assets" = "usr/lib/kakera/assets"
+}
 
 [package.metadata.packager.appimage.linuxdeploy-plugins]
 gtk = "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
