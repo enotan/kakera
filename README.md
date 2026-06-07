@@ -1,6 +1,24 @@
 ![Kakera Logo](./assets/kakeralogoblue.png)
 
-<h1 style="text-align: center;">Kakera</h1>
+<h1 align="center">Kakera</h1>
+
+<p align="center">
+  <a href="https://github.com/enotan/kakera/releases/latest">
+    <img src="https://img.shields.io/github/v/release/enotan/kakera?label=latest%20release" alt="Latest release">
+  </a>
+  <a href="https://aur.archlinux.org/packages/kakera">
+    <img src="https://img.shields.io/aur/version/kakera?label=AUR" alt="AUR package">
+  </a>
+  <a href="https://aur.archlinux.org/packages/kakera-bin">
+    <img src="https://img.shields.io/aur/version/kakera-bin?label=AUR%20binary" alt="AUR binary package">
+  </a>
+  <a href="https://github.com/enotan/kakera/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/enotan/kakera" alt="License">
+  </a>
+  <a href="https://github.com/enotan/kakera/releases">
+    <img src="https://img.shields.io/github/downloads/enotan/kakera/total" alt="Release downloads">
+  </a>
+</p>
 
 Kakera is a visual novel library, launcher, and playtime tracker built with Rust and Dioxus-CLI.
 
@@ -50,11 +68,15 @@ Download the latest .AppImage from Releases and that's it.
 
 ### Arch Linux
 
-```
-Hopefully coming to the AUR soon.
+```bash
+# Kakera is available on the AUR
+paru -S kakera
+
+# Binary version
+paru -S kakera-bin
 ```
 
-### NixOs
+### NixOS
 
 ```
 Hopefully coming as a flake soon.
