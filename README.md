@@ -148,6 +148,8 @@ C:\Users\<USER>\AppData\Roaming\kakera
 
 ## Planned Features
 
+- Controller navigation mainly for handheld PCs
+- Windows locale emulator support
 - Fuller notes view with characters (can be imported from VNDB), rich-text formatting and editing (For all the mystery lovers like me)
 - Statistics tab with graphs and visualisations of playtime
 - More themes + custom theming
