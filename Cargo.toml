@@ -30,6 +30,10 @@ icons = ["assets/favicon.png", "assets/favicon.ico"]
 before-packaging-command = "dx build --release"
 binaries-dir = "target/dx/kakera/release/linux/app"
 
+resources = [
+    { src = "target/dx/kakera/release/linux/app/assets", target = "assets" },
+]
+
 [package.metadata.packager.appimage]
 libs = [
     "WebKitNetworkProcess",
