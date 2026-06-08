@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 ///a wine runner detected on the system
 #[derive(Debug, Clone, PartialEq)]
@@ -22,7 +23,7 @@ pub fn detect_wine_runners() -> Vec<WineRunner> {
 
     add_path_wine_runners(&mut runners);
 
-    let home_dir = match env::var_os("HOME") {
+    let home_dir = match host_home_dir() {
         Some(home) => PathBuf::from(home),
         None => return runners,
     };
@@ -45,7 +46,7 @@ pub fn detect_wine_runners() -> Vec<WineRunner> {
 pub fn detect_proton_runners() -> Vec<ProtonRunner> {
     let mut runners = Vec::new();
 
-    let home_dir = match env::var_os("HOME") {
+    let home_dir = match host_home_dir() {
         Some(home) => PathBuf::from(home),
         None => return runners,
     };
@@ -125,6 +126,44 @@ fn add_proton_runners_from_directory(runners: &mut Vec<ProtonRunner>, directory:
 }
 
 fn add_path_wine_runners(runners: &mut Vec<WineRunner>) {
+    if env::var_os("FLATPAK_ID").is_some() {
+        let output = match Command::new("flatpak-spawn")
+            .args([
+                "--host",
+                "sh",
+                "-lc",
+                "for binary in wine wine64; do command -v \"binary\" 2>/dev/null || true; done",
+            ])
+            .output()
+            {
+                Ok(output) => output,
+                Err(_) => return,
+            };
+
+            let output_text = match String::from_utf8(output.stdout) {
+                Ok(text) => text,
+                Err(_) => return,
+            };
+
+            for binary_path in output_text.lines() {
+                let path = PathBuf::from(binary_path);
+
+                let name = match path.file_name() {
+                    Some(name) => format!("System {}", name.to_string_lossy()),
+                    None => continue,
+                };
+
+                add_runner_if_missing(runners,
+                    WineRunner {
+                        name,
+                        binary_path: binary_path.to_string(),
+                    },
+                );
+            }
+
+            return;
+    }
+
     let path_value = match env::var_os("PATH") {
         Some(path) => path,
         None => return,
@@ -138,12 +177,11 @@ fn add_path_wine_runners(runners: &mut Vec<WineRunner>) {
                 continue;
             }
 
-            add_runner_if_missing(
-                runners,
+            add_runner_if_missing(runners,
                 WineRunner {
-                    name: format!("System {binary_name}"),
+                    name: format!("System {binary_name}"), 
                     binary_path: binary_path.to_string_lossy().to_string(),
-                },
+                }
             );
         }
     }
@@ -156,5 +194,29 @@ fn add_runner_if_missing(runners: &mut Vec<WineRunner>, runner: WineRunner) {
 
     if !already_exists {
         runners.push(runner);
+    }
+}
+
+///returns the real home dir when running flatpak
+fn host_home_dir() -> Option<PathBuf> {
+    if env::var_os("FLATPAK_ID").is_none() {
+        return env::var_os("HOME").map(PathBuf::from);
+    }
+
+    let output = Command::new("flatpak-spawn")
+        .args(["--host", "sh", "-lc", "printf %s \"$HOME\""])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let home = String::from_utf8(output.stdout).ok()?;
+
+    if home.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(home))
     }
 }

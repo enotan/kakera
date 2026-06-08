@@ -1,0 +1,38 @@
+id: xyz.majou.Kakera
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+command: kakera
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --share=network
+  - --talk-name=org.freedesktop.Flatpak
+  - --filesystem=home
+
+modules:
+  - name: xdotool
+    buildsystem: simple
+
+    build-commands:
+      - make WITHOUT_RPATH_FIX=1
+      - make PREFIX=/app install
+    sources:
+      - type: archive
+        url: https://github.com/jordansissel/xdotool/archive/refs/tags/v4.20260303.1.tar.gz
+        sha256: c1f971a384da588eb99ca0755fc4300316d49c1e612537e3f1de52215e104fa3
+
+  - name: kakera
+    buildsystem: simple
+
+    build-commands:
+      - install -Dm755 kakera /app/bin/kakera
+      - install -d /app/lib/kakera
+      - cp -a assets/. /app/lib/kakera/assets/
+
+    sources:
+      - type: dir
+        path: target/dx/kakera/release/linux/app
