@@ -1,0 +1,61 @@
+id: xyz.majou.Kakera
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+command: kakera
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --share=network
+  - --talk-name=org.freedesktop.Flatpak
+  - --filesystem=home
+
+modules:
+  - name: xdotool
+    buildsystem: simple
+
+    build-commands:
+      - make WITHOUT_RPATH_FIX=1
+      - make PREFIX=/app install
+    sources:
+      - type: archive
+        url: https://github.com/jordansissel/xdotool/archive/refs/tags/v4.20260303.1.tar.gz
+        sha256: c1f971a384da588eb99ca0755fc4300316d49c1e612537e3f1de52215e104fa3
+
+  - name: dioxus-cli
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 dx /app/bin/dx
+    sources:
+      - type: archive
+        url: https://github.com/DioxusLabs/dioxus/releases/download/v0.7.9/dx-x86_64-unknown-linux-gnu.tar.gz
+        sha256: 3b132551b480bc96f938f9f0d37936ee1190f994977539dcc347eaf38540d005
+        strip-components: 0
+
+  - name: kakera
+    buildsystem: simple
+
+    build-options:
+      env:
+        CARGO_HOME: /run/build/kakera/cargo
+        RUSTFLAGS: -L native=/app/lib
+
+    build-commands:
+      - dx build --release --platform linux --cargo-args="--locked --offline"
+      - install -Dm755 target/dx/kakera/release/linux/app/kakera /app/bin/kakera
+      - install -d /app/lib/kakera
+      - cp -a target/dx/kakera/release/linux/app/assets/. /app/lib/kakera/assets/
+
+    sources:
+      - cargo-sources.json
+
+      - type: git
+        url: https://github.com/enotan/kakera.git
+        commit: 9e3060d28a33e39f94bbd2752e0b0ec5c2c946d9

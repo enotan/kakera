@@ -140,34 +140,22 @@ fn App() -> Element {
             style: "--app-bg-image: url('{BG_IMAGE}'); --stars-image: url('{STARS_IMAGE}');",
 
             //window resize handles
-            ResizeHandle {
-                class: "resize-north",
-                direction: ResizeDirection::North,
-            }
+            ResizeHandle { class: "resize-north", direction: ResizeDirection::North }
             ResizeHandle {
                 class: "resize-north-east",
                 direction: ResizeDirection::NorthEast,
             }
-            ResizeHandle {
-                class: "resize-east",
-                direction: ResizeDirection::East,
-            }
+            ResizeHandle { class: "resize-east", direction: ResizeDirection::East }
             ResizeHandle {
                 class: "resize-south-east",
                 direction: ResizeDirection::SouthEast,
             }
-            ResizeHandle {
-                class: "resize-south",
-                direction: ResizeDirection::South,
-            }
+            ResizeHandle { class: "resize-south", direction: ResizeDirection::South }
             ResizeHandle {
                 class: "resize-south-west",
                 direction: ResizeDirection::SouthWest,
             }
-            ResizeHandle {
-                class: "resize-west",
-                direction: ResizeDirection::West,
-            }
+            ResizeHandle { class: "resize-west", direction: ResizeDirection::West }
             ResizeHandle {
                 class: "resize-north-west",
                 direction: ResizeDirection::NorthWest,
