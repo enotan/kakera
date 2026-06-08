@@ -56,6 +56,10 @@ pub fn detect_proton_runners() -> Vec<ProtonRunner> {
         home_dir.join(".steam/root/compatibilitytools.d"),
         home_dir.join(".var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d"),
         home_dir.join(".steam/debian-installation/compatibilitytools.d"),
+        home_dir.join(".local/share/Steam/steamapps/common"),
+        home_dir.join(".steam/root/steamapps/common"),
+        home_dir.join(".steam/debian-installation/steamapps/common"),
+        home_dir.join(".var/app/com.valvesoftware.Steam/data/Steam/steamapps/common"),
     ];
 
     for directory in proton_directories {
@@ -132,7 +136,7 @@ fn add_path_wine_runners(runners: &mut Vec<WineRunner>) {
                 "--host",
                 "sh",
                 "-lc",
-                "for binary in wine wine64; do command -v \"binary\" 2>/dev/null || true; done",
+                "for binary in wine wine64; do command -v \"$binary\" 2>/dev/null || true; done",
             ])
             .output()
             {
