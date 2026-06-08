@@ -41,6 +41,11 @@ libs = [
     "libwebkit2gtkinjectedbundle.so",
 ]
 
+excluded-libs = [
+    "libwayland-*.so*",
+    "libxkbcommon.so*",
+]
+
 files = {
     "target/dx/kakera/release/linux/app/assets" = "usr/lib/kakera/assets"
 }
