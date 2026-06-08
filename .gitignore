@@ -9,3 +9,4 @@
 flatpak-build
 .flatpak-builder
 *.flatpak
+flatpak-repo
