@@ -2,6 +2,10 @@ id: xyz.majou.Kakera
 runtime: org.gnome.Platform
 runtime-version: '49'
 sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
 command: kakera
 
 finish-args:
@@ -24,6 +28,16 @@ modules:
       - type: archive
         url: https://github.com/jordansissel/xdotool/archive/refs/tags/v4.20260303.1.tar.gz
         sha256: c1f971a384da588eb99ca0755fc4300316d49c1e612537e3f1de52215e104fa3
+
+  - name: dioxus-cli
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 dx /app/bin/dx
+    sources:
+      - type: archive
+        url: https://github.com/DioxusLabs/dioxus/releases/download/v0.7.9/dx-x86_64-unknown-linux-gnu.tar.gz
+        sha256: 3b132551b480bc96f938f9f0d37936ee1190f994977539dcc347eaf38540d005
+        strip-components: 0
 
   - name: kakera
     buildsystem: simple
