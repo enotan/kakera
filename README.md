@@ -62,8 +62,27 @@ Download the latest installer from Releases and that's it.
 
 ### All Linux Distributions
 
+#### Flatpak (Recommended)
+
+Flatpak is the recommended package for most Linux distributions. It can avoid certain issues that may be faced when trying to use the AppImage.
+
+```bash
+# Download the latest .flatpak from Releases
+# Run:
+flatpak install --user ./kakera_*.flatpak
+
+flatpak run xyz.majou.Kakera
 ```
-Download the latest .AppImage from Releases and that's it.
+
+#### AppImage
+
+```bash
+# Download the latest .AppImage from Releases
+# Run:
+chmod +x kakera_*.AppImage
+
+./kakera_*.AppImage
+
 ```
 
 ### Arch Linux
