@@ -41,7 +41,7 @@ libs = [
     "libwebkit2gtkinjectedbundle.so",
 ]
 
-excluded-libs = [
+excluded-libraries = [
     "libwayland-*.so*",
     "libxkbcommon.so*",
 ]
