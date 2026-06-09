@@ -1,7 +1,7 @@
 use crate::models::{LaunchMode, StoryRoute, VisualNovel};
 use crate::views::library::cover_source;
 use crate::vn_markup::{DescriptionPart, parse_description};
-use crate::wine::{ProtonRunner, WineRunner};
+use crate::wine::{ProtonRunner, WineRunner, SteamPrefix};
 
 use dioxus::prelude::*;
 use rfd::FileDialog;
@@ -12,6 +12,7 @@ pub fn DetailView(
     vn: VisualNovel,
     wine_runners: Vec<WineRunner>,
     proton_runners: Vec<ProtonRunner>,
+    steam_prefixes: Vec<SteamPrefix>,
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
@@ -347,6 +348,38 @@ pub fn DetailView(
                     }
 
                     label {
+                        "Detected Steam prefix"
+
+                        select {
+                            value: "{wine_prefix_value}",
+
+                            onchange: move |event| {
+                                let prefix_path = event.value();
+
+                                wine_prefix_draft.set(prefix_path.clone());
+                                on_wine_prefix_change.call((vn.id, prefix_path));
+                            },
+
+                            option { value: "", "No Steam prefix selected" }
+
+                            for prefix in steam_prefixes.clone() {
+                                option { value: "{prefix.path}",
+                                    match prefix.game_name {
+                                        Some(name) => format!("{name} - Steam {}", prefix.app_id),
+                                        None => format!("Steam {}", prefix.app_id),
+                                    }
+                                }
+                            }
+
+                            if !wine_prefix_value.is_empty()
+                                && !steam_prefixes.iter().any(|prefix| prefix.path == wine_prefix_value)
+                            {
+                                option { value: "{wine_prefix_value}", "Custom prefix" }
+                            }
+                        }
+                    }
+
+                    label {
                         "Wine prefix"
 
                         input {
@@ -369,6 +402,9 @@ pub fn DetailView(
                             let picked_folder = FileDialog::new().pick_folder();
 
                             if let Some(path) = picked_folder {
+                                let path_text = path.to_string_lossy().to_string();
+
+                                wine_prefix_draft.set(path_text.clone());
                                 on_wine_prefix_change.call((vn.id, path.to_string_lossy().to_string()));
                             }
                         },

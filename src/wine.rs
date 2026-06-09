@@ -17,6 +17,14 @@ pub struct ProtonRunner {
     pub path: String,
 }
 
+///a steam-created wine prefix
+#[derive(Debug, Clone, PartialEq)]
+pub struct SteamPrefix {
+    pub app_id: String,
+    pub game_name: Option<String>,
+    pub path: String,
+}
+
 ///finds wine runners
 pub fn detect_wine_runners() -> Vec<WineRunner> {
     let mut runners = Vec::new();
@@ -67,6 +75,30 @@ pub fn detect_proton_runners() -> Vec<ProtonRunner> {
     }
 
     runners
+}
+
+///find wine prefixes made by steam
+pub fn detect_steam_prefixes() -> Vec<SteamPrefix> {
+    let mut prefixes = Vec::new();
+
+    let home_dir = match host_home_dir() {
+        Some(home) => home,
+        None => return prefixes,
+    };
+
+    let compatdata_directories = [
+        home_dir.join(".local/share/Steam/steamapps/compatdata"),
+        home_dir.join(".steam/root/steamapps/compatdata"),
+        home_dir.join(".steam/debian-installation/steamapps/compatdata"),
+        home_dir.join(".var/app/com.valvesoftware.Steam/data/Steam/steamapps/compatdata"),
+    ];
+
+    for directory in compatdata_directories {
+        add_steam_prefixes_from_directory(&mut prefixes, &directory);
+    }
+
+    prefixes.sort_by(|left, right| left.app_id.cmp(&right.app_id));
+    prefixes
 }
 
 fn add_runners_from_directory(runners: &mut Vec<WineRunner>, directory: &Path) {
@@ -201,6 +233,43 @@ fn add_runner_if_missing(runners: &mut Vec<WineRunner>, runner: WineRunner) {
     }
 }
 
+fn add_steam_prefixes_from_directory(prefixes: &mut Vec<SteamPrefix>, directory: &Path) {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let compatdata_directory = entry.path();
+        let prefix_directory = compatdata_directory.join("pfx");
+        
+        if !prefix_directory.is_dir() {
+            continue;
+        }
+
+        let app_id = match compatdata_directory.file_name() {
+            Some(name) => name.to_string_lossy().to_string(),
+            None => continue,
+        };
+
+        let prefix_path = prefix_directory.to_string_lossy().to_string();
+
+        let already_exists = prefixes
+            .iter()
+            .any(|existing| existing.app_id == app_id);
+
+        if !already_exists {
+            let game_name = steam_game_name(&compatdata_directory, &app_id);
+
+            prefixes.push(SteamPrefix {
+                app_id,
+                game_name,
+                path: prefix_path,
+            });
+        }
+    }
+}
+
 ///returns the real home dir when running flatpak
 fn host_home_dir() -> Option<PathBuf> {
     if env::var_os("FLATPAK_ID").is_none() {
@@ -223,4 +292,26 @@ fn host_home_dir() -> Option<PathBuf> {
     } else {
         Some(PathBuf::from(home))
     }
+}
+
+///get the steam game name from the .acf file for use in prefix stuff
+fn steam_game_name(compatdata_directory: &Path, app_id: &str) -> Option<String> {
+    let steamapps_directory = compatdata_directory.parent()?.parent()?;
+    let manifest_path = steamapps_directory.join(format!("appmanifest_{app_id}.acf"));
+    let manifest = fs::read_to_string(manifest_path).ok()?;
+
+    for line in manifest.lines() {
+        let trimmed = line.trim();
+
+        if !trimmed.starts_with("\"name\"") {
+            continue;
+        }
+
+        return trimmed
+            .split('"')
+            .nth(3)
+            .map(String::from);
+    }
+
+    None
 }

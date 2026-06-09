@@ -130,6 +130,7 @@ fn App() -> Element {
 
     let wine_runners = use_hook(wine::detect_wine_runners);
     let proton_runners = use_hook(wine::detect_proton_runners);
+    let steam_prefixes = use_hook(wine::detect_steam_prefixes);
 
     rsx! {
 
@@ -369,6 +370,7 @@ fn App() -> Element {
                                         vn,
                                         wine_runners: wine_runners.clone(),
                                         proton_runners: proton_runners.clone(),
+                                        steam_prefixes: steam_prefixes.clone(),
                                         on_notes_change: move |(id, notes): (u64, String)| {
                                             update_vn_and_save(
                                                 &mut vns,
