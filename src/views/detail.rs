@@ -243,8 +243,6 @@ pub fn DetailView(
                             "Wine binary / runner"
 
                             select {
-                                value: "{wine_binary_value}",
-
                                 onchange: move |event| {
                                     let binary_path = event.value();
 
@@ -252,16 +250,28 @@ pub fn DetailView(
                                     on_wine_binary_change.call((vn.id, binary_path));
                                 },
 
-                                option { value: "", "Default Wine from PATH" }
+                                option {
+                                    value: "",
+                                    selected: wine_binary_value.is_empty(),
+                                    "Default Wine from PATH"
+                                }
 
                                 for runner in wine_runners.clone() {
-                                    option { value: "{runner.binary_path}", "{runner.name}" }
+                                    option {
+                                        value: "{runner.binary_path}",
+                                        selected: runner.binary_path == wine_binary_value,
+                                        "{runner.name}"
+                                    }
                                 }
 
                                 if !wine_binary_value.is_empty()
                                     && !wine_runners.iter().any(|runner| runner.binary_path == wine_binary_value)
                                 {
-                                    option { value: "{wine_binary_value}", "Custom runner" }
+                                    option {
+                                        value: "{wine_binary_value}",
+                                        selected: true,
+                                        "Custom runner"
+                                    }
                                 }
                             }
 
@@ -298,16 +308,28 @@ pub fn DetailView(
                                     on_proton_path_change.call((vn.id, proton_path));
                                 },
 
-                                option { value: "", "UMU managed default" }
+                                option {
+                                    value: "",
+                                    selected: proton_path_value.is_empty(),
+                                    "UMU managed default"
+                                }
 
                                 for runner in proton_runners.clone() {
-                                    option { value: "{runner.path}", "{runner.name}" }
+                                    option {
+                                        value: "{runner.path}",
+                                        selected: runner.path == proton_path_value,
+                                        "{runner.name}"
+                                    }
                                 }
 
                                 if !proton_path_value.is_empty()
                                     && !proton_runners.iter().any(|runner| runner.path == proton_path_value)
                                 {
-                                    option { value: "{proton_path_value}", "Custom Proton installation" }
+                                    option {
+                                        value: "{proton_path_value}",
+                                        selected: true,
+                                        "Custom Proton install"
+                                    }
                                 }
                             }
                         }
