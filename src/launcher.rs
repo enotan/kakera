@@ -87,6 +87,10 @@ fn host_command(
         let mut command = Command::new("flatpak-spawn");
         command.arg("--host");
 
+        if let Ok(display) = std::env::var("DISPLAY") {
+            command.arg(format!("--env=DISPLAY={display}"));
+        }
+
         if let Some(directory) = working_directory {
             command.arg(format!("--directory={}", directory.to_string_lossy()));
         }

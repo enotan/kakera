@@ -58,4 +58,4 @@ modules:
 
       - type: git
         url: https://github.com/enotan/kakera.git
-        commit: 9e3060d28a33e39f94bbd2752e0b0ec5c2c946d9
+        branch: fix/godot-game-launching
