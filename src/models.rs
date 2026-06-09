@@ -80,6 +80,20 @@ pub struct PlaySession {
     pub notes: Option<String>,
 }
 
+///types of notificiations
+#[derive(Debug, Clone, PartialEq)]
+pub enum NotificationLevel {
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppNotification {
+    pub level: NotificationLevel,
+    pub message: String,
+}
+
 ///settings set in the settings panel
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
