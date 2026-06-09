@@ -190,6 +190,7 @@ pub fn DetailView(
                 onclick: move |_| {
                     let picked_file = FileDialog::new()
                         .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
+                        .add_filter("All Files", &["*"])
                         .pick_file();
 
                     if let Some(path) = picked_file {
