@@ -59,4 +59,4 @@ modules:
 
       - type: git
         url: https://github.com/enotan/kakera.git
-        branch: fix/steam-deck-launching
+        commit: 9a30c451e84d92624e01a1615e64d9ce6d6ec2cf
