@@ -74,6 +74,10 @@
     --spoiler: rgba(148, 163, 184, 0.62);
     --spoiler-text: rgba(148, 163, 184, 0.45);
     --spoiler-revealed: rgba(148, 163, 184, 0.18);
+
+    --notification-info: rgba(31, 111, 235, 0.28);
+    --notification-warning: rgba(184, 119, 20, 0.34);
+    --notification-error: rgba(190, 45, 55, 0.36);
 }
 
 * {
@@ -194,7 +198,7 @@ img {
     isolation: isolate;
     height: 100vh;
     display: grid;
-    grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
+    grid-template-rows: var(--titlebar-height) auto minmax(0, 1fr);
     overflow: hidden;
 }
 
@@ -963,6 +967,39 @@ select option {
     min-width: 0;
     width: 100%;
     max-width: 100%;
+}
+
+.notification-banner {
+    z-index: 2;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line);
+    color: var(--text);
+}
+
+.notification-banner.info {
+    background: var(--notification-info);
+}
+
+.notification-banner.warning {
+    background: var(--notification-warning);
+}
+
+.notification-banner.error {
+    background: var(--notification-error);
+}
+
+.notification-dismiss {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
 }
 
 
