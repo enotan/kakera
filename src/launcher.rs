@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 
 use crate::models::LaunchMode;
+use crate::system::find_host_command;
 
 ///launch the executable
 pub fn launch_executable(
@@ -65,7 +66,14 @@ pub fn launch_executable(
 
             environment.push(("GAMEID".to_string(), umu_game_id));
 
-            let mut command = host_command("umu-run".to_string(), environment, working_directory);
+            let umu_path = find_host_command("umu-run".to_string()).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "UMU Launcher not found",
+                )
+            })?;
+
+            let mut command = host_command(umu_path, environment, working_directory);
 
             command.arg(path);
             command.args(launch_arguments.split_whitespace());
