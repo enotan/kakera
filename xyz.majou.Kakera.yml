@@ -16,6 +16,7 @@ finish-args:
   - --share=network
   - --talk-name=org.freedesktop.Flatpak
   - --filesystem=home
+  - --filesystem=/run/media
 
 modules:
   - name: xdotool
