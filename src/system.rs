@@ -26,7 +26,7 @@ pub fn find_host_command(command_name: String) -> Option<String> {
             .args([
                 "--host",
                 "sh",
-                "-lc",
+                "-c",
                 "command -v -- \"$1\"",
                 "sh",
                 &command_name,

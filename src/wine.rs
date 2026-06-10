@@ -167,7 +167,7 @@ fn add_path_wine_runners(runners: &mut Vec<WineRunner>) {
             .args([
                 "--host",
                 "sh",
-                "-lc",
+                "-c",
                 "for binary in wine wine64; do command -v \"$binary\" 2>/dev/null || true; done",
             ])
             .output()
@@ -277,7 +277,7 @@ fn host_home_dir() -> Option<PathBuf> {
     }
 
     let output = Command::new("flatpak-spawn")
-        .args(["--host", "sh", "-lc", "printf %s \"$HOME\""])
+        .args(["--host", "sh", "-c", "printf %s \"$HOME\""])
         .output()
         .ok()?;
 
