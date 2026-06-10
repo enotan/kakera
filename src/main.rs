@@ -26,7 +26,7 @@ use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use system::{open_folder, host_command_exists};
+use system::{open_folder, find_host_command};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
@@ -114,10 +114,10 @@ fn App() -> Element {
     let mut search_query = use_signal(String::new);
     let mut show_add_form = use_signal(|| false);
 
-    let umu_is_available = use_hook(|| host_command_exists("umu-run".to_string()));
+    let umu_path = use_hook(|| find_host_command("umu-run".to_string()));
 
     let mut notification = use_signal(|| {
-        if cfg!(target_os = "linux") && !umu_is_available {
+        if cfg!(target_os = "linux") && umu_path.is_none() {
             Some(AppNotification {
                 level: NotificationLevel::Warning,
                 message: "UMU Launcher was not found. Proton launches will not work until UMU is installed."
