@@ -17,6 +17,7 @@ finish-args:
   - --talk-name=org.freedesktop.Flatpak
   - --filesystem=home
   - --filesystem=/run/media
+  - --filesystem=xdg-data/umu:create
 
 modules:
   - name: xdotool
@@ -40,6 +41,16 @@ modules:
         sha256: 3b132551b480bc96f938f9f0d37936ee1190f994977539dcc347eaf38540d005
         strip-components: 0
 
+  - name: umu-launcher
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 umu/umu-run /app/bin/umu-run
+    sources:
+      - type: archive
+        url: https://github.com/Open-Wine-Components/umu-launcher/releases/download/1.4.0/umu-launcher-1.4.0-zipapp.tar
+        sha256: 138ce4b8843608a257d4bee88191ca78a989778bcefd8abb3c1d1aaac3ac6fb8
+        strip-components: 0
+
   - name: kakera
     buildsystem: simple
 
@@ -59,4 +70,4 @@ modules:
 
       - type: git
         url: https://github.com/enotan/kakera.git
-        commit: 9a30c451e84d92624e01a1615e64d9ce6d6ec2cf
+        branch: feat/bundled-umu
