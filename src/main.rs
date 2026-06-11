@@ -13,20 +13,14 @@ use covers::cache_cover_image;
 use discord_presence::DiscordPresence;
 use launcher::launch_executable;
 use models::{
-    AppSettings,
-    LaunchMode,
-    PlaySession, 
-    StoryRoute, 
-    VisualNovel, 
-    default_umu_game_id,
-    AppNotification,
-    NotificationLevel,
+    AppNotification, AppSettings, LaunchMode, NotificationLevel, PlaySession, StoryRoute,
+    VisualNovel, default_umu_game_id,
 };
 use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use system::{open_folder, find_host_command};
+use system::{find_host_command, open_folder};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
@@ -114,10 +108,13 @@ fn App() -> Element {
     let mut search_query = use_signal(String::new);
     let mut show_add_form = use_signal(|| false);
 
-    let umu_path = use_hook(|| find_host_command("umu-run".to_string()));
+    let umu_is_available = use_hook(|| {
+        std::env::var_os("FLATPAK_ID").is_some()
+            || find_host_command("umu-run".to_string()).is_some()
+    });
 
     let mut notification = use_signal(|| {
-        if cfg!(target_os = "linux") && umu_path.is_none() {
+        if cfg!(target_os = "linux") && !umu_is_available {
             Some(AppNotification {
                 level: NotificationLevel::Warning,
                 message: "UMU Launcher was not found. Proton launches will not work until UMU is installed."
@@ -127,7 +124,7 @@ fn App() -> Element {
             None
         }
     });
-    
+
     let mut current_view = use_signal(|| AppView::Library);
     let selected_view = current_view.read().clone();
 

@@ -1,7 +1,7 @@
 use crate::models::{LaunchMode, StoryRoute, VisualNovel};
 use crate::views::library::cover_source;
 use crate::vn_markup::{DescriptionPart, parse_description};
-use crate::wine::{ProtonRunner, WineRunner, SteamPrefix};
+use crate::wine::{ProtonRunner, SteamPrefix, WineRunner};
 
 use dioxus::prelude::*;
 use rfd::FileDialog;
