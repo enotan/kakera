@@ -18,8 +18,33 @@ finish-args:
   - --filesystem=home
   - --filesystem=/run/media
   - --filesystem=xdg-data/umu:create
+  - --allow=multiarch
+  - --allow=per-app-dev-shm
+  - --socket=pulseaudio
+
+add-extensions:
+  org.freedesktop.Platform.Compat.i386:
+    directory: lib/i386-linux-gnu
+    version: '25.08'
+
+  org.freedesktop.Platform.GL32:
+    directory: lib/i386-linux-gnu/GL
+    version: '1.4'
+    versions: 25.08;1.4
+    subdirectories: true
+    no-autodownload: true
+    autodelete: false
+    add-ld-path: lib
+    download-if: active-gl-driver
+    enable-if: active-gl-driver
 
 modules:
+  - name: platform-bootstrap
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib/i386-linux-gnu
+      - mkdir -p /app/lib/i386-linux-gnu/GL
+      
   - name: xdotool
     buildsystem: simple
 
