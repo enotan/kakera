@@ -171,33 +171,34 @@ fn add_path_wine_runners(runners: &mut Vec<WineRunner>) {
                 "for binary in wine wine64; do command -v \"$binary\" 2>/dev/null || true; done",
             ])
             .output()
-            {
-                Ok(output) => output,
-                Err(_) => return,
+        {
+            Ok(output) => output,
+            Err(_) => return,
+        };
+
+        let output_text = match String::from_utf8(output.stdout) {
+            Ok(text) => text,
+            Err(_) => return,
+        };
+
+        for binary_path in output_text.lines() {
+            let path = PathBuf::from(binary_path);
+
+            let name = match path.file_name() {
+                Some(name) => format!("System {}", name.to_string_lossy()),
+                None => continue,
             };
 
-            let output_text = match String::from_utf8(output.stdout) {
-                Ok(text) => text,
-                Err(_) => return,
-            };
+            add_runner_if_missing(
+                runners,
+                WineRunner {
+                    name,
+                    binary_path: binary_path.to_string(),
+                },
+            );
+        }
 
-            for binary_path in output_text.lines() {
-                let path = PathBuf::from(binary_path);
-
-                let name = match path.file_name() {
-                    Some(name) => format!("System {}", name.to_string_lossy()),
-                    None => continue,
-                };
-
-                add_runner_if_missing(runners,
-                    WineRunner {
-                        name,
-                        binary_path: binary_path.to_string(),
-                    },
-                );
-            }
-
-            return;
+        return;
     }
 
     let path_value = match env::var_os("PATH") {
@@ -213,11 +214,12 @@ fn add_path_wine_runners(runners: &mut Vec<WineRunner>) {
                 continue;
             }
 
-            add_runner_if_missing(runners,
+            add_runner_if_missing(
+                runners,
                 WineRunner {
-                    name: format!("System {binary_name}"), 
+                    name: format!("System {binary_name}"),
                     binary_path: binary_path.to_string_lossy().to_string(),
-                }
+                },
             );
         }
     }
@@ -242,7 +244,7 @@ fn add_steam_prefixes_from_directory(prefixes: &mut Vec<SteamPrefix>, directory:
     for entry in entries.flatten() {
         let compatdata_directory = entry.path();
         let prefix_directory = compatdata_directory.join("pfx");
-        
+
         if !prefix_directory.is_dir() {
             continue;
         }
@@ -254,9 +256,7 @@ fn add_steam_prefixes_from_directory(prefixes: &mut Vec<SteamPrefix>, directory:
 
         let prefix_path = prefix_directory.to_string_lossy().to_string();
 
-        let already_exists = prefixes
-            .iter()
-            .any(|existing| existing.app_id == app_id);
+        let already_exists = prefixes.iter().any(|existing| existing.app_id == app_id);
 
         if !already_exists {
             let game_name = steam_game_name(&compatdata_directory, &app_id);
@@ -307,10 +307,7 @@ fn steam_game_name(compatdata_directory: &Path, app_id: &str) -> Option<String> 
             continue;
         }
 
-        return trimmed
-            .split('"')
-            .nth(3)
-            .map(String::from);
+        return trimmed.split('"').nth(3).map(String::from);
     }
 
     None
