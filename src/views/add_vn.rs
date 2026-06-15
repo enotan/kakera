@@ -12,16 +12,19 @@ pub struct NewVN {
 
 ///the form to add a visual novel
 #[component]
-pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
+pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Element {
     let mut title = use_signal(String::new);
     let mut description = use_signal(String::new);
     let mut cover_path = use_signal(|| None::<String>);
+    let mut cover_url = use_signal(|| None::<String>);
 
     let description_text = description.read().clone();
     let cover_path_text = cover_path.read().clone();
 
     let mut search_results: Signal<Vec<VndbSearchResult>> = use_signal(Vec::new);
     let mut search_message = use_signal(String::new);
+
+    let mut title_has_error = use_signal(|| false);
 
     let typed_title = title.read().clone();
     let message_text = search_message.read().clone();
@@ -32,14 +35,31 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
 
             h2 { "Add VN" }
 
+            button {
+                class: "add-vn-close",
+                aria_label: "Close add VN form",
+
+                onclick: move |_| {
+                    on_close.call(());
+                },
+
+                "×"
+            }
+
             //title input
             label {
                 "Title"
 
                 input {
+                    class: if *title_has_error.read() { "field-invalid" } else { "" },
                     value: "{title}",
 
                     oninput: move |event| {
+                        let value = event.value();
+                        if !value.trim().is_empty() {
+                            title_has_error.set(false);
+                        }
+
                         title.set(event.value());
                     },
                 }
@@ -69,6 +89,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
 
                     if let Some(path) = picked_file {
                         cover_path.set(Some(path.to_string_lossy().to_string()));
+                        cover_url.set(None);
                     }
                 },
 
@@ -82,24 +103,29 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
             //button to add a vn
             button {
                 onclick: move |_| {
-                    let typed_title = title.read().clone();
+                    let typed_title = title.read().trim().to_string();
 
-                    if !typed_title.is_empty() {
-                        on_add
-                            .call(NewVN {
-                                title: typed_title,
-                                cover_url: None,
-                                cover_path: cover_path.read().clone(),
-                                description: if description.read().is_empty() {
-                                    None
-                                } else {
-                                    Some(description.read().clone())
-                                },
-                            });
-                        title.set(String::new());
-                        description.set(String::new());
-                        cover_path.set(None);
+                    if typed_title.is_empty() {
+                        title_has_error.set(true);
+                        search_message.set("A title is required".to_string());
+                        return;
                     }
+
+                    on_add
+                        .call(NewVN {
+                            title: typed_title,
+                            cover_url: cover_url.read().clone(),
+                            cover_path: cover_path.read().clone(),
+                            description: if description.read().is_empty() {
+                                None
+                            } else {
+                                Some(description.read().clone())
+                            },
+                        });
+                    title.set(String::new());
+                    description.set(String::new());
+                    cover_path.set(None);
+                    cover_url.set(None);
                 },
 
                 "Add"
@@ -109,7 +135,8 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                 onclick: move |_| {
                     let query = title.read().clone();
 
-                    if query.is_empty() {
+                    if query.trim().is_empty() {
+                        title_has_error.set(true);
                         search_message.set("Type a title before searching VNDB".to_string());
                         return;
                     }
@@ -132,28 +159,33 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>) -> Element {
                 "Search VNDB"
             }
 
-            p { "Typed title: {typed_title}" }
-
             p { "{message_text}" }
 
             div {
                 for result in results_to_show {
-                    article {
-                        h3 { "{result.title}" }
-                        p { "VNDB ID: {result.id}" }
+                    {
+                        let result_title = result.title.clone();
+                        let result_description = result.description.clone();
+                        let result_cover_url = result.image.clone().and_then(|image| image.url);
 
-                        button {
-                            onclick: move |_| {
-                                on_add
-                                    .call(NewVN {
-                                        title: result.title.clone(),
-                                        cover_url: result.image.clone().and_then(|image| image.url),
-                                        description: result.description.clone(),
-                                        cover_path: None,
-                                    });
-                            },
+                        rsx! {
+                            article {
+                                h3 { "{result.title}" }
+                                p { "VNDB ID: {result.id}" }
 
-                            "Add this result"
+                                button {
+                                    onclick: move |_| {
+                                        title.set(result_title.clone());
+
+                                        description.set(result_description.clone().unwrap_or_default());
+                                        cover_url.set(result_cover_url.clone());
+                                        cover_path.set(None);
+                                        search_message.set("VNDB result loaded into form".to_string());
+                                    },
+
+                                    "Use this result"
+                                }
+                            }
                         }
                     }
                 }
