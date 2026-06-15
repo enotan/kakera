@@ -325,73 +325,82 @@ fn App() -> Element {
 
                                 //when pressing the + to add a vn
                                 if *show_add_form.read() {
-                                    AddVnForm {
-                                        on_add: move |new_vn: NewVN| {
-                                            let next_id = vns
-                                                .read()
-                                                .iter()
-                                                .map(|vn| vn.id)
-                                                .max()
-                                                .unwrap_or(0)
-                                                + 1;
+                                    div { class: "add-vn-overlay",
 
-                                            let cover_url = new_vn.cover_url.clone();
+                                        AddVnForm {
+                                            on_close: move |_| {
+                                                show_add_form.set(false);
+                                            },
 
-                                            let new_vn = VisualNovel {
-                                                id: next_id,
-                                                title: new_vn.title,
-                                                cover_url: new_vn.cover_url,
-                                                description: new_vn.description,
-                                                cover_path: new_vn.cover_path,
-                                                executable_path: None,
-                                                launch_mode: LaunchMode::default(),
-                                                wine_binary: None,
-                                                wine_prefix: None,
-                                                wine_locale: None,
-                                                launch_arguments: String::new(),
-                                                proton_path: None,
-                                                umu_game_id: default_umu_game_id(),
-                                                notes: String::new(),
-                                                routes: Vec::new(),
-                                                active_route: None,
-                                                play_sessions: Vec::new(),
-                                            };
+                                            on_add: move |new_vn: NewVN| {
+                                                let next_id = vns
+                                                    .read()
+                                                    .iter()
+                                                    .map(|vn| vn.id)
+                                                    .max()
+                                                    .unwrap_or(0)
+                                                    + 1;
 
-                                            vns.write().push(new_vn);
+                                                let cover_url = new_vn.cover_url.clone();
 
-                                            if let Some(cover_url) = cover_url {
-                                                let mut vns_for_cover = vns;
+                                                let new_vn = VisualNovel {
+                                                    id: next_id,
+                                                    title: new_vn.title,
+                                                    cover_url: new_vn.cover_url,
+                                                    description: new_vn.description,
+                                                    cover_path: new_vn.cover_path,
+                                                    executable_path: None,
+                                                    launch_mode: LaunchMode::default(),
+                                                    wine_binary: None,
+                                                    wine_prefix: None,
+                                                    wine_locale: None,
+                                                    launch_arguments: String::new(),
+                                                    proton_path: None,
+                                                    umu_game_id: default_umu_game_id(),
+                                                    notes: String::new(),
+                                                    routes: Vec::new(),
+                                                    active_route: None,
+                                                    play_sessions: Vec::new(),
+                                                };
 
-                                                spawn(async move {
-                                                    match cache_cover_image(next_id, cover_url).await {
-                                                        Ok(cover_path) => {
-                                                            for vn in vns_for_cover
-                                                                .write()
-                                                                .iter_mut()
-                                                            {
-                                                                if vn.id == next_id {
-                                                                    vn.cover_path = Some(cover_path.clone());
+                                                vns.write().push(new_vn);
+
+                                                if let Some(cover_url) = cover_url {
+                                                    let mut vns_for_cover = vns;
+
+                                                    spawn(async move {
+                                                        match cache_cover_image(next_id, cover_url).await {
+                                                            Ok(cover_path) => {
+                                                                for vn in vns_for_cover
+                                                                    .write()
+                                                                    .iter_mut()
+                                                                {
+                                                                    if vn.id == next_id {
+                                                                        vn.cover_path = Some(cover_path.clone());
+                                                                    }
+                                                                }
+                                                                let save_result = save_library(vns_for_cover.read().clone());
+                                                                if let Err(error) = save_result {
+                                                                    println!("Could not save cached cover path: {error}");
                                                                 }
                                                             }
-                                                            let save_result = save_library(vns_for_cover.read().clone());
-                                                            if let Err(error) = save_result {
-                                                                println!("Could not save cached cover path: {error}");
+
+                                                            Err(error) => {
+                                                                println!("Could not cache cover image: {error}");
                                                             }
                                                         }
+                                                    });
+                                                }
 
-                                                        Err(error) => {
-                                                            println!("Could not cache cover image: {error}");
-                                                        }
-                                                    }
-                                                });
-                                            }
+                                                let save_result = save_library(vns.read().clone());
 
-                                            let save_result = save_library(vns.read().clone());
+                                                if let Err(error) = save_result {
+                                                    println!("Could not save library: {error}");
+                                                }
 
-                                            if let Err(error) = save_result {
-                                                println!("Could not save library: {error}");
-                                            }
-                                        },
+                                                show_add_form.set(false);
+                                            },
+                                        }
                                     }
                                 }
 
