@@ -26,7 +26,6 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
 
     let mut title_has_error = use_signal(|| false);
 
-    let typed_title = title.read().clone();
     let message_text = search_message.read().clone();
     let results_to_show = search_results.read().clone();
 
@@ -60,7 +59,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                             title_has_error.set(false);
                         }
 
-                        title.set(event.value());
+                        title.set(value);
                     },
                 }
             }
@@ -128,7 +127,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                     cover_url.set(None);
                 },
 
-                "Add"
+                "Add to library"
             }
 
             button {
@@ -180,9 +179,11 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                                         description.set(result_description.clone().unwrap_or_default());
                                         cover_url.set(result_cover_url.clone());
                                         cover_path.set(None);
-                                        search_message.set("VNDB result loaded into form".to_string());
+                                        search_message.set(format!(
+                                            "Loaded {}.", result_title
+                                        ));
                                     },
-
+                                    
                                     "Use this result"
                                 }
                             }
