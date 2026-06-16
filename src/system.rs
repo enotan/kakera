@@ -52,3 +52,8 @@ pub fn find_host_command(command_name: String) -> Option<String> {
         Some(path.to_string())
     }
 }
+
+///return true when a path is coming from /run/flatpak/doc/
+pub fn is_flatpak_document_portal_path(path: &str) -> bool {
+    path.starts_with("/run/flatpak/doc/")
+}

@@ -20,7 +20,11 @@ use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use system::{find_host_command, open_folder};
+use system::{
+    find_host_command,
+    open_folder,
+    is_flatpak_document_portal_path,
+};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
@@ -471,7 +475,21 @@ fn App() -> Element {
 
                                         //when changing the vn path
                                         on_executable_path_change: move |(id, path): (u64, String)| {
-                                            let executable_path = if path.is_empty() { None } else { Some(path) };
+                                            let trimmed_path = path.trim().to_string();
+
+                                            if is_flatpak_document_portal_path(&trimmed_path) {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: "That executable was selected through Flatpak's temp document portal. Move the game into a normal folder such as ~/Games, then type or select the real path.".to_string(),
+                                                }));
+                                                return;
+                                            }
+                                            
+                                            let executable_path = if trimmed_path.is_empty() {
+                                                None
+                                            } else {
+                                                Some(trimmed_path)
+                                            };
 
                                             update_vn_and_save(
                                                 &mut vns,
