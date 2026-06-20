@@ -531,6 +531,11 @@ fn App() -> Element {
                                                                     let started_timer = Instant::now();
                                                                     let vn_id = presence_vn.id;
 
+                                                                    notification.set(Some(AppNotification {
+                                                                        level: NotificationLevel::Info,
+                                                                        message: format!("Launched {}.", presence_vn.title),
+                                                                    }));
+
                                                                     let discord_presence = if settings
                                                                         .read()
                                                                         .discord_rich_presence_enabled
@@ -587,17 +592,26 @@ fn App() -> Element {
                                                                     });
                                                                 }
                                                                 Err(error) => {
-                                                                    println!("Could not launch VN: {error}");
+                                                                    notification.set(Some(AppNotification {
+                                                                        level: NotificationLevel::Error,
+                                                                        message: format!("Could not launch VN: {error}"),
+                                                                    }));
                                                                 }
                                                             }
                                                         }
                                                         None => {
-                                                            println!("No executable path saved for this VN.");
+                                                            notification.set(Some(AppNotification {
+                                                                level: NotificationLevel::Warning,
+                                                                message: "No executable path saved for this VN.".to_string(),
+                                                            }));
                                                         }
                                                     }
                                                 }
                                                 None => {
-                                                    println!("Could not find VN with id {id}.");
+                                                    notification.set(Some(AppNotification {
+                                                        level: NotificationLevel::Error,
+                                                        message: format!("Could not find VN with id {id}."),
+                                                    }));
                                                 }
                                             }
                                         },
