@@ -34,6 +34,7 @@ pub fn DetailView(
     on_wine_prefix_change: EventHandler<(u64, String)>,
     on_wine_locale_change: EventHandler<(u64, String)>,
     on_launch_arguments_change: EventHandler<(u64, String)>,
+    on_launch_environment_change: EventHandler<(u64, String)>,
     on_description_change: EventHandler<(u64, String)>,
     on_cover_path_change: EventHandler<(u64, String)>,
     on_cover_refresh: EventHandler<u64>,
@@ -58,6 +59,7 @@ pub fn DetailView(
     let mut wine_prefix_draft = use_signal(|| wine_prefix_text.clone());
     let mut wine_locale_draft = use_signal(|| wine_locale_text.clone());
     let mut launch_arguments_draft = use_signal(|| vn.launch_arguments.clone());
+    let mut launch_environment_draft = use_signal(|| vn.launch_environment.clone());
 
     let wine_binary_text = vn.wine_binary.clone().unwrap_or_default();
     let mut wine_binary_draft = use_signal(|| wine_binary_text.clone());
@@ -74,6 +76,7 @@ pub fn DetailView(
     let wine_prefix_value = wine_prefix_draft.read().clone();
     let wine_locale_value = wine_locale_draft.read().clone();
     let launch_arguments_value = launch_arguments_draft.read().clone();
+    let launch_environment_value = launch_environment_draft.read().clone();
 
     let mut notes_draft = use_signal(|| vn.notes.clone());
     let notes_value = notes_draft.read().clone();
@@ -611,6 +614,27 @@ pub fn DetailView(
 
                                         onblur: move |_| {
                                             on_launch_arguments_change.call((vn.id, launch_arguments_draft.read().clone()));
+                                        },
+                                    }
+                                }
+
+                                label {
+                                    "Environment Variables"
+
+                                    textarea {
+                                        class: "launch-env-input",
+                                        placeholder: "Place env vars here, 1 per line.",
+                                        value: "{launch_environment_value}",
+
+                                        oninput: move |event| {
+                                            launch_environment_draft.set(event.value());
+                                        },
+
+                                        onblur: move |_| {
+                                            on_launch_environment_change.call((
+                                                vn.id,
+                                                launch_environment_draft.read().clone(),
+                                            ));
                                         },
                                     }
                                 }

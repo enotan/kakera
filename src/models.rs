@@ -44,6 +44,9 @@ pub struct VisualNovel {
     #[serde(default)]
     pub launch_arguments: String,
 
+    #[serde(default)]
+    pub launch_environment: String,
+
     pub notes: String,
     pub routes: Vec<StoryRoute>,
 
