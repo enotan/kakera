@@ -476,19 +476,21 @@ fn App() -> Element {
                                             let trimmed_path = path.trim().to_string();
 
                                             if is_flatpak_document_portal_path(&trimmed_path) {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "That executable was selected through Flatpak's temp document portal. Move the game into a normal folder such as ~/Games, then type or select the real path.".to_string(),
-                                                }));
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "That executable was selected through Flatpak's temp document portal. Move the game into a normal folder such as ~/Games, then type or select the real path."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
-
                                             let executable_path = if trimmed_path.is_empty() {
                                                 None
                                             } else {
                                                 Some(trimmed_path)
                                             };
-
                                             update_vn_and_save(
                                                 &mut vns,
                                                 id,
@@ -513,17 +515,22 @@ fn App() -> Element {
 
                                                     match vn.executable_path {
                                                         Some(path) => {
-                                                            let launch_log_path = match new_launch_log_path(vn.id, vn.title.clone()) {
+                                                            let launch_log_path = match new_launch_log_path(
+                                                                vn.id,
+                                                                vn.title.clone(),
+                                                            ) {
                                                                 Ok(path) => Some(path),
                                                                 Err(error) => {
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Warning,
-                                                                        message: format!("Could not create launch log: {error}"),
-                                                                    }));
+                                                                    notification
+                                                                        .set(
+                                                                            Some(AppNotification {
+                                                                                level: NotificationLevel::Warning,
+                                                                                message: format!("Could not create launch log: {error}"),
+                                                                            }),
+                                                                        );
                                                                     None
                                                                 }
                                                             };
-
                                                             match launch_executable(
                                                                 path,
                                                                 vn.launch_mode,
@@ -540,12 +547,13 @@ fn App() -> Element {
                                                                     let started_at = started_time.to_rfc3339();
                                                                     let started_timer = Instant::now();
                                                                     let vn_id = presence_vn.id;
-
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Info,
-                                                                        message: format!("Launched {}.", presence_vn.title),
-                                                                    }));
-
+                                                                    notification
+                                                                        .set(
+                                                                            Some(AppNotification {
+                                                                                level: NotificationLevel::Info,
+                                                                                message: format!("Launched {}.", presence_vn.title),
+                                                                            }),
+                                                                        );
                                                                     let discord_presence = if settings
                                                                         .read()
                                                                         .discord_rich_presence_enabled
@@ -607,26 +615,35 @@ fn App() -> Element {
                                                                     });
                                                                 }
                                                                 Err(error) => {
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Error,
-                                                                        message: format!("Could not launch VN: {error}"),
-                                                                    }));
+                                                                    notification
+                                                                        .set(
+                                                                            Some(AppNotification {
+                                                                                level: NotificationLevel::Error,
+                                                                                message: format!("Could not launch VN: {error}"),
+                                                                            }),
+                                                                        );
                                                                 }
                                                             }
                                                         }
                                                         None => {
-                                                            notification.set(Some(AppNotification {
-                                                                level: NotificationLevel::Warning,
-                                                                message: "No executable path saved for this VN.".to_string(),
-                                                            }));
+                                                            notification
+                                                                .set(
+                                                                    Some(AppNotification {
+                                                                        level: NotificationLevel::Warning,
+                                                                        message: "No executable path saved for this VN.".to_string(),
+                                                                    }),
+                                                                );
                                                         }
                                                     }
                                                 }
                                                 None => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Error,
-                                                        message: format!("Could not find VN with id {id}."),
-                                                    }));
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Error,
+                                                                message: format!("Could not find VN with id {id}."),
+                                                            }),
+                                                        );
                                                 }
                                             }
                                         },
@@ -771,24 +788,28 @@ fn App() -> Element {
                                             .cloned();
 
                                             let Some(vn) = vn else {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "Could not refresh cover: VN was not found.".to_string(),
-                                                }));
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not refresh cover: VN was not found.".to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             };
-
                                             let Some(cover_url) = vn.cover_url.clone() else {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Warning,
-                                                    message: "This VN does not have a VNDB cover URL saved.".to_string(),
-                                                }));
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Warning,
+                                                            message: "This VN does not have a VNDB cover URL saved."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             };
-
                                             let mut vns_for_cover = vns;
                                             let mut notification_for_cover = notification;
-
                                             spawn(async move {
                                                 match cache_cover_image(id, cover_url).await {
                                                     Ok(cover_path) => {
@@ -798,27 +819,29 @@ fn App() -> Element {
                                                                 break;
                                                             }
                                                         }
-
                                                         save_vns_or_log(
                                                             &vns_for_cover,
                                                             "Could not save refreshed cover path.".to_string(),
                                                         );
-
-                                                        notification_for_cover.set(Some(AppNotification {
-                                                            level: NotificationLevel::Info,
-                                                            message: "Cover refreshed from VNDB".to_string(),
-                                                        }));
+                                                        notification_for_cover
+                                                            .set(
+                                                                Some(AppNotification {
+                                                                    level: NotificationLevel::Info,
+                                                                    message: "Cover refreshed from VNDB".to_string(),
+                                                                }),
+                                                            );
                                                     }
-
                                                     Err(error) => {
-                                                        notification_for_cover.set(Some(AppNotification {
-                                                            level: NotificationLevel::Error,
-                                                            message: format!("Could not refresh cover: {error}"),
-                                                        }));
+                                                        notification_for_cover
+                                                            .set(
+                                                                Some(AppNotification {
+                                                                    level: NotificationLevel::Error,
+                                                                    message: format!("Could not refresh cover: {error}"),
+                                                                }),
+                                                            );
                                                     }
                                                 }
                                             });
-
                                         },
 
                                         //when changing active route
@@ -914,19 +937,24 @@ fn App() -> Element {
                                     Ok(path) => {
                                         if let Err(error) = open_folder(&path) {
                                             println!("Could not open logs folder: {error}");
-                                            notification.set(Some(AppNotification {
-                                                level: NotificationLevel::Error,
-                                                message: format!("Could not open logs folder: {error}"),
-                                            }));
+                                            notification
+                                                .set(
+                                                    Some(AppNotification {
+                                                        level: NotificationLevel::Error,
+                                                        message: format!("Could not open logs folder: {error}"),
+                                                    }),
+                                                );
                                         }
                                     }
-
                                     Err(error) => {
                                         println!("Could not find logs folder: {error}");
-                                        notification.set(Some(AppNotification {
-                                            level: NotificationLevel::Error,
-                                            message: format!("Could not find logs folder: {error}"),
-                                        }));
+                                        notification
+                                            .set(
+                                                Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: format!("Could not find logs folder: {error}"),
+                                                }),
+                                            );
                                     }
                                 }
                             },

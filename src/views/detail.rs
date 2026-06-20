@@ -147,269 +147,336 @@ pub fn DetailView(
                 }
             }
 
-            //img cover
-            if let Some(cover_src) = cover_source(vn.clone()) {
-                img {
-                    class: "detail-cover",
-                    src: "{cover_src}",
-                    alt: "Cover art for {vn.title}",
-                }
-            }
+            div { class: "detail-tab-content",
 
-            button {
-                class: "fp-button",
+                if selected_tab == DetailTab::Info {
 
-                onclick: move |_| {
-                    let picked_file = FileDialog::new()
-                        .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
-                        .pick_file();
-
-                    if let Some(path) = picked_file {
-                        on_cover_path_change.call((vn.id, path.to_string_lossy().to_string()));
-                    }
-                },
-
-                "Change cover image"
-            }
-
-            if vn.cover_url.is_some() {
-                button {
-                    class: "fp-button",
-
-                    onclick: move |_| {
-                        on_cover_refresh.call(vn.id);
-                    },
-
-                    "Refresh cover from VNDB"
-                }
-            }
-
-            if selected_tab == DetailTab::Info {
-
-                //desc
-                if let Some(_description) = vn.description.clone() {
-                    h3 { "Description" }
-
-                    div { class: if *description_is_editing.read() { "desc-box editing" } else { "desc-box" },
+                    div { class: "detail-cover-frame",
+                        //img cover
+                        if let Some(cover_src) = cover_source(vn.clone()) {
+                            img {
+                                class: "detail-cover",
+                                src: "{cover_src}",
+                                alt: "Cover art for {vn.title}",
+                            }
+                        } else {
+                            div { class: "detail-cover-placeholder", "No cover" }
+                        }
 
                         button {
-                            class: "desc-edit-button",
-                            title: "Edit Description",
+                            class: "cover-action-button cover-edit-button",
+                            title: "Change cover image",
 
                             onclick: move |_| {
-                                let next_value = !*description_is_editing.read();
+                                let picked_file = FileDialog::new()
+                                    .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                                    .pick_file();
 
-                                if next_value {
-                                    description_draft.set(vn.description.clone().unwrap_or_default());
+                                if let Some(path) = picked_file {
+                                    on_cover_path_change.call((vn.id, path.to_string_lossy().to_string()));
                                 }
-
-                                description_is_editing.set(next_value);
                             },
 
                             "✎"
                         }
 
-                        if *description_is_editing.read() {
-                            textarea {
-                                class: "detail-desc-input",
-                                value: "{description_value}",
+                        if vn.cover_url.is_some() {
+                            button {
+                                class: "cover-action-button cover-refresh-button",
+                                title: "Refresh cover from VNDB",
 
-                                oninput: move |event| {
-                                    description_draft.set(event.value());
+                                onclick: move |_| {
+                                    on_cover_refresh.call(vn.id);
                                 },
 
-                                onblur: move |_| {
-                                    on_description_change.call((vn.id, description_draft.read().clone()));
-                                    description_is_editing.set(false);
-                                },
+                                "↻"
                             }
-                        } else if saved_description.is_empty() {
-                            div { class: "detail-desc empty", "No description yet." }
-                        } else {
-                            div { class: "detail-desc",
+                        }
+                    }
 
-                                for part in description_parts {
-                                    DescriptionPartView { part }
+                    //desc
+                    if let Some(_description) = vn.description.clone() {
+                        h3 { "Description" }
+
+                        div { class: if *description_is_editing.read() { "desc-box editing" } else { "desc-box" },
+
+                            button {
+                                class: "desc-edit-button",
+                                title: "Edit Description",
+
+                                onclick: move |_| {
+                                    let next_value = !*description_is_editing.read();
+
+                                    if next_value {
+                                        description_draft.set(vn.description.clone().unwrap_or_default());
+                                    }
+
+                                    description_is_editing.set(next_value);
+                                },
+
+                                "✎"
+                            }
+
+                            if *description_is_editing.read() {
+                                textarea {
+                                    class: "detail-desc-input",
+                                    value: "{description_value}",
+
+                                    oninput: move |event| {
+                                        description_draft.set(event.value());
+                                    },
+
+                                    onblur: move |_| {
+                                        on_description_change.call((vn.id, description_draft.read().clone()));
+                                        description_is_editing.set(false);
+                                    },
+                                }
+                            } else if saved_description.is_empty() {
+                                div { class: "detail-desc empty", "No description yet." }
+                            } else {
+                                div { class: "detail-desc",
+
+                                    for part in description_parts {
+                                        DescriptionPartView { part }
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                div { class: if *notes_is_editing.read() { "notes-box editing" } else { "notes-box" },
+                    div { class: if *notes_is_editing.read() { "notes-box editing" } else { "notes-box" },
 
-                    button {
-                        class: "notes-edit-button",
-                        title: "Edit notes",
+                        button {
+                            class: "notes-edit-button",
+                            title: "Edit notes",
 
-                        onclick: move |_| {
-                            let next_value = !*notes_is_editing.read();
+                            onclick: move |_| {
+                                let next_value = !*notes_is_editing.read();
 
-                            if next_value {
-                                notes_draft.set(vn.notes.clone());
+                                if next_value {
+                                    notes_draft.set(vn.notes.clone());
+                                }
+
+                                notes_is_editing.set(next_value);
+                            },
+
+                            "✎"
+                        }
+
+                        if *notes_is_editing.read() {
+                            textarea {
+                                class: "notes-input",
+                                value: "{notes_value}",
+
+                                oninput: move |event| {
+                                    notes_draft.set(event.value());
+                                },
+
+                                onblur: move |_| {
+                                    on_notes_change.call((vn.id, notes_draft.read().clone()));
+                                    notes_is_editing.set(false);
+                                },
                             }
-
-                            notes_is_editing.set(next_value);
-                        },
-
-                        "✎"
+                        } else if saved_notes.is_empty() {
+                            p { class: "notes-text empty", "No notes yet." }
+                        } else {
+                            p { class: "notes-text", "{saved_notes}" }
+                        }
                     }
 
-                    if *notes_is_editing.read() {
-                        textarea {
-                            class: "notes-input",
-                            value: "{notes_value}",
+                    button {
+                        class: "delete-button",
+
+                        onclick: move |_| {
+                            on_delete.call(vn.id);
+                        },
+
+                        "Delete VN"
+                    }
+                }
+
+                if selected_tab == DetailTab::Launch {
+                    h3 { "Launch" }
+
+                    //exec path input
+                    label {
+                        "Executable path"
+
+                        input {
+                            value: "{executable_path_value}",
 
                             oninput: move |event| {
-                                notes_draft.set(event.value());
+                                executable_path_draft.set(event.value());
                             },
 
                             onblur: move |_| {
-                                on_notes_change.call((vn.id, notes_draft.read().clone()));
-                                notes_is_editing.set(false);
+                                on_executable_path_change.call((vn.id, executable_path_draft.read().clone()));
                             },
                         }
-                    } else if saved_notes.is_empty() {
-                        p { class: "notes-text empty", "No notes yet." }
-                    } else {
-                        p { class: "notes-text", "{saved_notes}" }
                     }
-                }
 
-                button {
-                    class: "delete-button",
-
-                    onclick: move |_| {
-                        on_delete.call(vn.id);
-                    },
-
-                    "Delete VN"
-                }
-            }
-
-            if selected_tab == DetailTab::Launch {
-                h3 { "Launch" }
-
-                //exec path input
-                label {
-                    "Executable path"
-
-                    input {
-                        value: "{executable_path_value}",
-
-                        oninput: move |event| {
-                            executable_path_draft.set(event.value());
-                        },
-
-                        onblur: move |_| {
-                            on_executable_path_change.call((vn.id, executable_path_draft.read().clone()));
-                        },
-                    }
-                }
-
-                //file picker
-                button {
-                    class: "fp-button",
-
-                    onclick: move |_| {
-                        let picked_file = FileDialog::new()
-                            .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
-                            .add_filter("All Files", &["*"])
-                            .pick_file();
-
-                        if let Some(path) = picked_file {
-                            let path_text = path.to_string_lossy().to_string();
-                            executable_path_draft.set(path_text.clone());
-                            on_executable_path_change.call((vn.id, path_text));
-                        }
-                    },
-
-                    "Choose executable"
-                }
-
-                //launch mode selector
-                label { class: "launch-selector",
-                    "Launch mode"
-
-                    select {
-                        value: match vn.launch_mode {
-                            LaunchMode::Native => "native",
-                            LaunchMode::Wine => "wine",
-                            LaunchMode::Proton => "proton",
-                        },
-
-                        onchange: move |event| {
-                            let launch_mode = match event.value().as_str() {
-                                "wine" => LaunchMode::Wine,
-                                "proton" => LaunchMode::Proton,
-                                _ => LaunchMode::Native,
-                            };
-                            on_launch_mode_change.call((vn.id, launch_mode))
-                        },
-
-                        option { value: "native", "Native" }
-
-                        option { value: "wine", "Wine" }
-
-                        option { value: "proton", "Proton" }
-                    }
-                }
-
-                //wine / proton settings area
-                if show_compatibility_settings {
+                    //file picker
                     button {
-                        class: "launch-settings-toggle",
+                        class: "fp-button",
 
                         onclick: move |_| {
-                            launch_settings_are_open.set(!launch_settings_open);
+                            let picked_file = FileDialog::new()
+                                .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
+                                .add_filter("All Files", &["*"])
+                                .pick_file();
+
+                            if let Some(path) = picked_file {
+                                let path_text = path.to_string_lossy().to_string();
+                                executable_path_draft.set(path_text.clone());
+                                on_executable_path_change.call((vn.id, path_text));
+                            }
                         },
 
-                        if launch_settings_open {
-                            "Hide settings"
-                        } else {
-                            "Show settings"
+                        "Choose executable"
+                    }
+
+                    //launch mode selector
+                    label { class: "launch-selector",
+                        "Launch mode"
+
+                        select {
+                            value: match vn.launch_mode {
+                                LaunchMode::Native => "native",
+                                LaunchMode::Wine => "wine",
+                                LaunchMode::Proton => "proton",
+                            },
+
+                            onchange: move |event| {
+                                let launch_mode = match event.value().as_str() {
+                                    "wine" => LaunchMode::Wine,
+                                    "proton" => LaunchMode::Proton,
+                                    _ => LaunchMode::Native,
+                                };
+                                on_launch_mode_change.call((vn.id, launch_mode))
+                            },
+
+                            option { value: "native", "Native" }
+
+                            option { value: "wine", "Wine" }
+
+                            option { value: "proton", "Proton" }
                         }
                     }
 
-                    if launch_settings_open {
+                    //wine / proton settings area
+                    if show_compatibility_settings {
+                        button {
+                            class: "launch-settings-toggle",
 
-                        div { class: "wine-settings",
+                            onclick: move |_| {
+                                launch_settings_are_open.set(!launch_settings_open);
+                            },
 
-                            h3 { "Wine Settings" }
+                            if launch_settings_open {
+                                "Hide settings"
+                            } else {
+                                "Show settings"
+                            }
+                        }
 
-                            if vn.launch_mode == LaunchMode::Wine {
-                                label {
-                                    "Wine binary / runner"
+                        if launch_settings_open {
 
-                                    select {
-                                        onchange: move |event| {
-                                            let binary_path = event.value();
+                            div { class: "wine-settings",
 
-                                            wine_binary_draft.set(binary_path.clone());
-                                            on_wine_binary_change.call((vn.id, binary_path));
-                                        },
+                                h3 { "Wine Settings" }
 
-                                        option {
-                                            value: "",
-                                            selected: wine_binary_value.is_empty(),
-                                            "Default Wine from PATH"
-                                        }
+                                if vn.launch_mode == LaunchMode::Wine {
+                                    label {
+                                        "Wine binary / runner"
 
-                                        for runner in wine_runners.clone() {
+                                        select {
+                                            onchange: move |event| {
+                                                let binary_path = event.value();
+
+                                                wine_binary_draft.set(binary_path.clone());
+                                                on_wine_binary_change.call((vn.id, binary_path));
+                                            },
+
                                             option {
-                                                value: "{runner.binary_path}",
-                                                selected: runner.binary_path == wine_binary_value,
-                                                "{runner.name}"
+                                                value: "",
+                                                selected: wine_binary_value.is_empty(),
+                                                "Default Wine from PATH"
+                                            }
+
+                                            for runner in wine_runners.clone() {
+                                                option {
+                                                    value: "{runner.binary_path}",
+                                                    selected: runner.binary_path == wine_binary_value,
+                                                    "{runner.name}"
+                                                }
+                                            }
+
+                                            if !wine_binary_value.is_empty()
+                                                && !wine_runners.iter().any(|runner| runner.binary_path == wine_binary_value)
+                                            {
+                                                option {
+                                                    value: "{wine_binary_value}",
+                                                    selected: true,
+                                                    "Custom runner"
+                                                }
                                             }
                                         }
 
-                                        if !wine_binary_value.is_empty()
-                                            && !wine_runners.iter().any(|runner| runner.binary_path == wine_binary_value)
-                                        {
+                                        button {
+                                            class: "fp-button",
+
+                                            onclick: move |_| {
+                                                let picked_file = FileDialog::new().pick_file();
+
+                                                if let Some(path) = picked_file {
+                                                    let path_text = path.to_string_lossy().to_string();
+
+                                                    wine_binary_draft.set(path_text.clone());
+                                                    on_wine_binary_change.call((vn.id, path_text));
+                                                }
+                                            },
+
+                                            "Choose Wine binary"
+                                        }
+                                    }
+                                }
+
+                                if vn.launch_mode == LaunchMode::Proton {
+                                    label {
+                                        "Proton version"
+
+                                        select {
+                                            value: "{proton_path_value}",
+
+                                            onchange: move |event| {
+                                                let proton_path = event.value();
+
+                                                proton_path_draft.set(proton_path.clone());
+                                                on_proton_path_change.call((vn.id, proton_path));
+                                            },
+
                                             option {
-                                                value: "{wine_binary_value}",
-                                                selected: true,
-                                                "Custom runner"
+                                                value: "",
+                                                selected: proton_path_value.is_empty(),
+                                                "UMU managed default"
+                                            }
+
+                                            for runner in proton_runners.clone() {
+                                                option {
+                                                    value: "{runner.path}",
+                                                    selected: runner.path == proton_path_value,
+                                                    "{runner.name}"
+                                                }
+                                            }
+
+                                            if !proton_path_value.is_empty()
+                                                && !proton_runners.iter().any(|runner| runner.path == proton_path_value)
+                                            {
+                                                option {
+                                                    value: "{proton_path_value}",
+                                                    selected: true,
+                                                    "Custom Proton install"
+                                                }
                                             }
                                         }
                                     }
@@ -418,58 +485,82 @@ pub fn DetailView(
                                         class: "fp-button",
 
                                         onclick: move |_| {
-                                            let picked_file = FileDialog::new().pick_file();
+                                            let picked_folder = FileDialog::new().pick_folder();
 
-                                            if let Some(path) = picked_file {
+                                            if let Some(path) = picked_folder {
                                                 let path_text = path.to_string_lossy().to_string();
 
-                                                wine_binary_draft.set(path_text.clone());
-                                                on_wine_binary_change.call((vn.id, path_text));
+                                                proton_path_draft.set(path_text.clone());
+                                                on_proton_path_change.call((vn.id, path_text));
                                             }
                                         },
 
-                                        "Choose Wine binary"
+                                        "Choose Proton folder"
+                                    }
+
+                                    label {
+                                        "UMU game ID"
+
+                                        input {
+                                            placeholder: "umu-default",
+                                            value: "{umu_game_id_value}",
+
+                                            oninput: move |event| {
+                                                umu_game_id_draft.set(event.value());
+                                            },
+
+                                            onblur: move |_| {
+                                                on_umu_game_id_change.call((vn.id, umu_game_id_draft.read().clone()));
+                                            },
+                                        }
                                     }
                                 }
-                            }
 
-                            if vn.launch_mode == LaunchMode::Proton {
                                 label {
-                                    "Proton version"
+                                    "Detected Steam prefix"
 
                                     select {
-                                        value: "{proton_path_value}",
+                                        value: "{wine_prefix_value}",
 
                                         onchange: move |event| {
-                                            let proton_path = event.value();
+                                            let prefix_path = event.value();
 
-                                            proton_path_draft.set(proton_path.clone());
-                                            on_proton_path_change.call((vn.id, proton_path));
+                                            wine_prefix_draft.set(prefix_path.clone());
+                                            on_wine_prefix_change.call((vn.id, prefix_path));
                                         },
 
-                                        option {
-                                            value: "",
-                                            selected: proton_path_value.is_empty(),
-                                            "UMU managed default"
-                                        }
+                                        option { value: "", "No Steam prefix selected" }
 
-                                        for runner in proton_runners.clone() {
-                                            option {
-                                                value: "{runner.path}",
-                                                selected: runner.path == proton_path_value,
-                                                "{runner.name}"
+                                        for prefix in steam_prefixes.clone() {
+                                            option { value: "{prefix.path}",
+                                                match prefix.game_name {
+                                                    Some(name) => format!("{name} - Steam {}", prefix.app_id),
+                                                    None => format!("Steam {}", prefix.app_id),
+                                                }
                                             }
                                         }
 
-                                        if !proton_path_value.is_empty()
-                                            && !proton_runners.iter().any(|runner| runner.path == proton_path_value)
+                                        if !wine_prefix_value.is_empty()
+                                            && !steam_prefixes.iter().any(|prefix| prefix.path == wine_prefix_value)
                                         {
-                                            option {
-                                                value: "{proton_path_value}",
-                                                selected: true,
-                                                "Custom Proton install"
-                                            }
+                                            option { value: "{wine_prefix_value}", "Custom prefix" }
                                         }
+                                    }
+                                }
+
+                                label {
+                                    "Wine prefix"
+
+                                    input {
+                                        value: "{wine_prefix_value}",
+
+                                        oninput: move |event| {
+                                            wine_prefix_draft.set(event.value());
+                                        },
+
+                                        onblur: move |_| {
+                                            on_wine_prefix_change.call((vn.id, wine_prefix_draft.read().clone()));
+                                        },
                                     }
                                 }
 
@@ -482,134 +573,145 @@ pub fn DetailView(
                                         if let Some(path) = picked_folder {
                                             let path_text = path.to_string_lossy().to_string();
 
-                                            proton_path_draft.set(path_text.clone());
-                                            on_proton_path_change.call((vn.id, path_text));
+                                            wine_prefix_draft.set(path_text.clone());
+                                            on_wine_prefix_change.call((vn.id, path.to_string_lossy().to_string()));
                                         }
                                     },
 
-                                    "Choose Proton folder"
+                                    "Choose prefix folder"
                                 }
 
                                 label {
-                                    "UMU game ID"
+                                    "Wine locale"
 
                                     input {
-                                        placeholder: "umu-default",
-                                        value: "{umu_game_id_value}",
+                                        placeholder: "ja_JP.UTF-8",
+                                        value: "{wine_locale_value}",
 
                                         oninput: move |event| {
-                                            umu_game_id_draft.set(event.value());
+                                            wine_locale_draft.set(event.value());
                                         },
 
                                         onblur: move |_| {
-                                            on_umu_game_id_change.call((vn.id, umu_game_id_draft.read().clone()));
+                                            on_wine_locale_change.call((vn.id, wine_locale_draft.read().clone()));
                                         },
                                     }
                                 }
-                            }
 
-                            label {
-                                "Detected Steam prefix"
+                                label {
+                                    "Launch arguments"
 
-                                select {
-                                    value: "{wine_prefix_value}",
+                                    input {
+                                        placeholder: "--some-flag",
+                                        value: "{launch_arguments_value}",
 
-                                    onchange: move |event| {
-                                        let prefix_path = event.value();
+                                        oninput: move |event| {
+                                            launch_arguments_draft.set(event.value());
+                                        },
 
-                                        wine_prefix_draft.set(prefix_path.clone());
-                                        on_wine_prefix_change.call((vn.id, prefix_path));
-                                    },
-
-                                    option { value: "", "No Steam prefix selected" }
-
-                                    for prefix in steam_prefixes.clone() {
-                                        option { value: "{prefix.path}",
-                                            match prefix.game_name {
-                                                Some(name) => format!("{name} - Steam {}", prefix.app_id),
-                                                None => format!("Steam {}", prefix.app_id),
-                                            }
-                                        }
+                                        onblur: move |_| {
+                                            on_launch_arguments_change.call((vn.id, launch_arguments_draft.read().clone()));
+                                        },
                                     }
-
-                                    if !wine_prefix_value.is_empty()
-                                        && !steam_prefixes.iter().any(|prefix| prefix.path == wine_prefix_value)
-                                    {
-                                        option { value: "{wine_prefix_value}", "Custom prefix" }
-                                    }
-                                }
-                            }
-
-                            label {
-                                "Wine prefix"
-
-                                input {
-                                    value: "{wine_prefix_value}",
-
-                                    oninput: move |event| {
-                                        wine_prefix_draft.set(event.value());
-                                    },
-
-                                    onblur: move |_| {
-                                        on_wine_prefix_change.call((vn.id, wine_prefix_draft.read().clone()));
-                                    },
-                                }
-                            }
-
-                            button {
-                                class: "fp-button",
-
-                                onclick: move |_| {
-                                    let picked_folder = FileDialog::new().pick_folder();
-
-                                    if let Some(path) = picked_folder {
-                                        let path_text = path.to_string_lossy().to_string();
-
-                                        wine_prefix_draft.set(path_text.clone());
-                                        on_wine_prefix_change.call((vn.id, path.to_string_lossy().to_string()));
-                                    }
-                                },
-
-                                "Choose prefix folder"
-                            }
-
-                            label {
-                                "Wine locale"
-
-                                input {
-                                    placeholder: "ja_JP.UTF-8",
-                                    value: "{wine_locale_value}",
-
-                                    oninput: move |event| {
-                                        wine_locale_draft.set(event.value());
-                                    },
-
-                                    onblur: move |_| {
-                                        on_wine_locale_change.call((vn.id, wine_locale_draft.read().clone()));
-                                    },
-                                }
-                            }
-
-                            label {
-                                "Launch arguments"
-
-                                input {
-                                    placeholder: "--some-flag",
-                                    value: "{launch_arguments_value}",
-
-                                    oninput: move |event| {
-                                        launch_arguments_draft.set(event.value());
-                                    },
-
-                                    onblur: move |_| {
-                                        on_launch_arguments_change.call((vn.id, launch_arguments_draft.read().clone()));
-                                    },
                                 }
                             }
                         }
                     }
                 }
 
+                if selected_tab == DetailTab::History {
+                    //play sessions
+                    h3 { "Playtime" }
+
+                    div { class: "playtime-summary",
+                        div {
+                            span { class: "stat-label", "Total playtime" }
+                            strong { "{total_playtime_text}" }
+                        }
+
+                        div {
+                            span { class: "stat-label", "Sessions recorded" }
+                            strong { "{vn.play_sessions.len()}" }
+                        }
+                    }
+
+                    h3 { "Play sessions" }
+
+                    ul {
+                        for session in vn.play_sessions.clone() {
+                            li {
+
+                                "{format_started_at(session.started_at.clone())} - {session.duration_seconds} seconds"
+                            }
+                        }
+                    }
+                }
+
+                if selected_tab == DetailTab::Routes {
+                    h3 { "Routes" }
+                    p { "Routes tracked: {vn.routes.len()}" }
+
+                    label {
+                        "New route"
+
+                        input {
+                            value: "{typed_route_name}",
+
+                            oninput: move |event| {
+                                new_route_name.set(event.value());
+                            },
+                        }
+                    }
+
+                    button {
+                        onclick: move |_| {
+                            let route_name = new_route_name.read().clone();
+
+                            if !route_name.is_empty() {
+                                on_route_add.call((vn.id, route_name));
+                                new_route_name.set(String::new());
+                            }
+                        },
+
+                        "Add route"
+                    }
+
+                    label {
+                        "Active route"
+
+                        select {
+                            value: vn.active_route.clone().unwrap_or_default(),
+
+                            onchange: move |event| {
+                                let route_name = event.value();
+                                let active_route = if route_name.is_empty() { None } else { Some(route_name) };
+                                on_active_route_change.call((vn.id, active_route));
+                            },
+
+                            option { value: "", "No active route" }
+
+                            for route in vn.routes.clone() {
+                                option { value: "{route.name}", "{route.name}" }
+                            }
+                        }
+                    }
+
+                    div { class: "route-list",
+
+                        for route in vn.routes.clone() {
+                            RouteItem {
+                                vn_id: vn.id,
+                                route,
+                                on_route_toggle,
+                                on_route_delete,
+                            }
+                        }
+                    }
+                }
+
+            }
+
+            div { class: "detail-launch-footer",
                 //launch button
                 button {
                     class: "launch-button",
@@ -621,96 +723,6 @@ pub fn DetailView(
                     },
 
                     "Launch"
-                }
-            }
-
-            if selected_tab == DetailTab::History {
-                //play sessions
-                h3 { "Playtime" }
-
-                div { class: "playtime-summary",
-                    div {
-                        span { class: "stat-label", "Total playtime" }
-                        strong { "{total_playtime_text}" }
-                    }
-
-                    div {
-                        span { class: "stat-label", "Sessions recorded" }
-                        strong { "{vn.play_sessions.len()}" }
-                    }
-                }
-
-                h3 { "Play sessions" }
-
-                ul {
-                    for session in vn.play_sessions.clone() {
-                        li {
-
-                            "{format_started_at(session.started_at.clone())} - {session.duration_seconds} seconds"
-                        }
-                    }
-                }
-            }
-
-            if selected_tab == DetailTab::Routes {
-                h3 { "Routes" }
-                p { "Routes tracked: {vn.routes.len()}" }
-
-                label {
-                    "New route"
-
-                    input {
-                        value: "{typed_route_name}",
-
-                        oninput: move |event| {
-                            new_route_name.set(event.value());
-                        },
-                    }
-                }
-
-                button {
-                    onclick: move |_| {
-                        let route_name = new_route_name.read().clone();
-
-                        if !route_name.is_empty() {
-                            on_route_add.call((vn.id, route_name));
-                            new_route_name.set(String::new());
-                        }
-                    },
-
-                    "Add route"
-                }
-
-                label {
-                    "Active route"
-
-                    select {
-                        value: vn.active_route.clone().unwrap_or_default(),
-
-                        onchange: move |event| {
-                            let route_name = event.value();
-                            let active_route = if route_name.is_empty() { None } else { Some(route_name) };
-                            on_active_route_change.call((vn.id, active_route));
-                        },
-
-                        option { value: "", "No active route" }
-
-                        for route in vn.routes.clone() {
-                            option { value: "{route.name}", "{route.name}" }
-                        }
-                    }
-                }
-
-                div { class: "route-list",
-
-                    for route in vn.routes.clone() {
-                        RouteItem {
-                            vn_id: vn.id,
-                            route,
-                            on_route_toggle,
-                            on_route_delete,
-                        }
-                    }
                 }
             }
 

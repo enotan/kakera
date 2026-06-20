@@ -33,6 +33,7 @@
   --accent-strong: rgba(50, 128, 240, 1);
   --accent-glow: rgba(82, 163, 255, 0.72);
   --accent-soft: rgba(82, 163, 255, 0.16);
+  --accent-soft-2: rgba(18, 58, 103, 0.757);
   --accent-focus-ring: rgba(82, 163, 255, 0.32);
   --accent-inset-ring: rgba(82, 163, 255, 0.08);
   --accent-card-ring: rgba(82, 163, 255, 0.18);
@@ -571,7 +572,7 @@ img {
   min-width: 0;
   min-height: 0;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--bg-panel);
@@ -580,13 +581,17 @@ img {
 
 .detail-panel {
   display: grid;
-  gap: var(--space-4);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
 }
 
 .detail-panel h2 {
   margin: 0;
   font-size: 28px;
   line-height: 1.15;
+  padding: var(--space-5) var(--space-5) 0;
 }
 
 .detail-panel h3 {
@@ -607,6 +612,25 @@ img {
   overflow-wrap: anywhere;
 }
 
+.detail-tab-content {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+}
+
+.detail-launch-footer {
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--line);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 24, 48, 0),
+      var(--bg-panel) 30%
+    );
+}
+
 .detail-cover {
   width: min(220px, 100%);
   aspect-ratio: 2 / 3;
@@ -614,6 +638,72 @@ img {
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   justify-self: center;
+}
+
+.detail-cover-frame {
+  position: relative;
+  width: min(220px, 100%);
+  aspect-ratio: 2 / 3;
+  justify-self: center;
+}
+
+.detail-cover,
+.detail-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.detail-cover {
+  object-fit: cover;
+}
+
+.detail-cover-placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--bg-panel-fade);
+  color: var(--muted);
+}
+
+.detail-panel .cover-action-button {
+  position: absolute;
+  bottom: 8px;
+  width: var(--edit-action-size);
+  min-width: var(--edit-action-size);
+  max-width: var(--edit-action-size);
+  height: var(--edit-action-size);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-floating-control);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cover-edit-button {
+  left: 8px;
+}
+
+.cover-refresh-button {
+  right: 8px;
+}
+
+.detail-cover-frame:hover .cover-action-button,
+.cover-action-button:focus {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.detail-panel .cover-action-button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft-2);
 }
 
 .detail-panel button {
@@ -1060,6 +1150,8 @@ select option {
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: var(--bg-input);
+    margin: var(--space-4) var(--space-5) 0;
+
 }
 
 .detail-panel .detail-tab {
