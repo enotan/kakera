@@ -1,6 +1,7 @@
+use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 
 use crate::models::LaunchMode;
 use crate::system::find_host_command;
@@ -15,18 +16,43 @@ pub fn launch_executable(
     proton_path: Option<String>,
     umu_game_id: String,
     launch_arguments: String,
+    launch_log_path: Option<PathBuf>,
 ) -> Result<Child, io::Error> {
     let path = PathBuf::from(executable_path);
     let working_directory = path.parent().map(Path::to_path_buf);
 
+    let mut stdout_log = None;
+    let mut stderr_log = None;
+
+    if let Some(log_path) = launch_log_path {
+        stdout_log = Some(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)?,
+        );
+
+        stderr_log = Some(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)?,
+        );
+    }
+
     //native runs the app as normal, and wine through wine ofc
     let child: Child = match launch_mode {
-        LaunchMode::Native => host_command(
-            path.to_string_lossy().to_string(),
-            Vec::new(),
-            working_directory.clone(),
-        )
-        .spawn()?,
+        LaunchMode::Native => {
+            let mut command = host_command(
+                path.to_string_lossy().to_string(),
+                Vec::new(),
+                working_directory.clone(),
+            );
+
+            attach_launch_log(&mut command, stdout_log, stderr_log);
+
+            command.spawn()?
+        }
         LaunchMode::Wine => {
             let wine_command = wine_binary.unwrap_or_else(|| "wine".to_string());
             let mut environment = Vec::new();
@@ -45,6 +71,8 @@ pub fn launch_executable(
             command.arg(path);
 
             command.args(launch_arguments.split_whitespace());
+
+            attach_launch_log(&mut command, stdout_log, stderr_log);
 
             command.spawn()?
         }
@@ -90,6 +118,8 @@ pub fn launch_executable(
             command.arg(path);
             command.args(launch_arguments.split_whitespace());
 
+            attach_launch_log(&mut command, stdout_log, stderr_log);
+
             command.spawn()?
         }
     };
@@ -133,5 +163,19 @@ fn host_command(
         }
 
         command
+    }
+}
+
+fn attach_launch_log(
+    command: &mut Command,
+    stdout_log: Option<std::fs::File>,
+    stderr_log: Option<std::fs::File>,
+) {
+    if let Some(file) = stdout_log {
+        command.stdout(Stdio::from(file));
+    }
+
+    if let Some(file) = stderr_log {
+        command.stderr(Stdio::from(file));
     }
 }

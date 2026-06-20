@@ -1,6 +1,7 @@
 mod covers;
 mod discord_presence;
 mod launcher;
+mod logs;
 mod models;
 mod storage;
 mod system;
@@ -12,6 +13,7 @@ mod wine;
 use covers::cache_cover_image;
 use discord_presence::DiscordPresence;
 use launcher::launch_executable;
+use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
     AppNotification, AppSettings, LaunchMode, NotificationLevel, PlaySession, StoryRoute,
     VisualNovel, default_umu_game_id,
@@ -20,11 +22,7 @@ use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use system::{
-    find_host_command,
-    open_folder,
-    is_flatpak_document_portal_path,
-};
+use system::{find_host_command, is_flatpak_document_portal_path, open_folder};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
@@ -484,7 +482,7 @@ fn App() -> Element {
                                                 }));
                                                 return;
                                             }
-                                            
+
                                             let executable_path = if trimmed_path.is_empty() {
                                                 None
                                             } else {
@@ -515,6 +513,17 @@ fn App() -> Element {
 
                                                     match vn.executable_path {
                                                         Some(path) => {
+                                                            let launch_log_path = match new_launch_log_path(vn.id, vn.title.clone()) {
+                                                                Ok(path) => Some(path),
+                                                                Err(error) => {
+                                                                    notification.set(Some(AppNotification {
+                                                                        level: NotificationLevel::Warning,
+                                                                        message: format!("Could not create launch log: {error}"),
+                                                                    }));
+                                                                    None
+                                                                }
+                                                            };
+
                                                             match launch_executable(
                                                                 path,
                                                                 vn.launch_mode,
@@ -524,6 +533,7 @@ fn App() -> Element {
                                                                 vn.proton_path,
                                                                 vn.umu_game_id,
                                                                 vn.launch_arguments,
+                                                                launch_log_path.clone(),
                                                             ) {
                                                                 Ok(mut child) => {
                                                                     let started_time = Utc::now();
@@ -556,6 +566,11 @@ fn App() -> Element {
                                                                     };
                                                                     thread::spawn(move || {
                                                                         let wait_result = child.wait();
+                                                                        if let Some(log_path) = launch_log_path {
+                                                                            if let Err(error) = update_latest_launch_log(&log_path) {
+                                                                                println!("Could not update latest launch log: {error}");
+                                                                            }
+                                                                        }
                                                                         match wait_result {
                                                                             Ok(_status) => {
                                                                                 let duration_seconds = started_timer.elapsed().as_secs();
@@ -803,7 +818,7 @@ fn App() -> Element {
                                                     }
                                                 }
                                             });
-                                            
+
                                         },
 
                                         //when changing active route
@@ -892,6 +907,28 @@ fn App() -> Element {
                             on_discord_custom_cover_url_change: move |cover_url| {
                                 settings.write().discord_custom_cover_url = cover_url;
                                 save_settings_or_log(&settings);
+                            },
+
+                            on_open_logs_folder: move |_| {
+                                match launch_logs_dir() {
+                                    Ok(path) => {
+                                        if let Err(error) = open_folder(&path) {
+                                            println!("Could not open logs folder: {error}");
+                                            notification.set(Some(AppNotification {
+                                                level: NotificationLevel::Error,
+                                                message: format!("Could not open logs folder: {error}"),
+                                            }));
+                                        }
+                                    }
+
+                                    Err(error) => {
+                                        println!("Could not find logs folder: {error}");
+                                        notification.set(Some(AppNotification {
+                                            level: NotificationLevel::Error,
+                                            message: format!("Could not find logs folder: {error}"),
+                                        }));
+                                    }
+                                }
                             },
                         }
                     }

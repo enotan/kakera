@@ -179,11 +179,9 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                                         description.set(result_description.clone().unwrap_or_default());
                                         cover_url.set(result_cover_url.clone());
                                         cover_path.set(None);
-                                        search_message.set(format!(
-                                            "Loaded {}.", result_title
-                                        ));
+                                        search_message.set(format!("Loaded {}.", result_title));
                                     },
-                                    
+
                                     "Use this result"
                                 }
                             }
