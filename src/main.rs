@@ -733,6 +733,65 @@ fn App() -> Element {
                                             );
                                         },
 
+                                        //when refreshing cover
+                                        on_cover_refresh: move |id| {
+                                            let vn = vns
+                                            .read()
+                                            .iter()
+                                            .find(|vn| vn.id == id)
+                                            .cloned();
+
+                                            let Some(vn) = vn else {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: "Could not refresh cover: VN was not found.".to_string(),
+                                                }));
+                                                return;
+                                            };
+
+                                            let Some(cover_url) = vn.cover_url.clone() else {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Warning,
+                                                    message: "This VN does not have a VNDB cover URL saved.".to_string(),
+                                                }));
+                                                return;
+                                            };
+
+                                            let mut vns_for_cover = vns;
+                                            let mut notification_for_cover = notification;
+
+                                            spawn(async move {
+                                                match cache_cover_image(id, cover_url).await {
+                                                    Ok(cover_path) => {
+                                                        for vn in vns_for_cover.write().iter_mut() {
+                                                            if vn.id == id {
+                                                                vn.cover_path = Some(cover_path.clone());
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        save_vns_or_log(
+                                                            &vns_for_cover,
+                                                            "Could not save refreshed cover path.".to_string(),
+                                                        );
+
+                                                        notification_for_cover.set(Some(AppNotification {
+                                                            level: NotificationLevel::Info,
+                                                            message: "Cover refreshed from VNDB".to_string(),
+                                                        }));
+                                                    }
+
+                                                    Err(error) => {
+                                                        notification_for_cover.set(Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: format!("Could not refresh cover: {error}"),
+                                                        }));
+                                                    }
+                                                }
+                                            });
+                                            
+                                        },
+
                                         //when changing active route
                                         on_active_route_change: move |(id, active_route): (u64, Option<String>)| {
                                             update_vn_and_save(

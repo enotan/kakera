@@ -36,6 +36,7 @@ pub fn DetailView(
     on_launch_arguments_change: EventHandler<(u64, String)>,
     on_description_change: EventHandler<(u64, String)>,
     on_cover_path_change: EventHandler<(u64, String)>,
+    on_cover_refresh: EventHandler<u64>,
     on_active_route_change: EventHandler<(u64, Option<String>)>,
     on_route_delete: EventHandler<(u64, String)>,
 ) -> Element {
@@ -169,6 +170,18 @@ pub fn DetailView(
                 },
 
                 "Change cover image"
+            }
+
+            if vn.cover_url.is_some() {
+                button {
+                    class: "fp-button",
+
+                    onclick: move |_| {
+                        on_cover_refresh.call(vn.id);
+                    },
+
+                    "Refresh cover from VNDB"
+                }
             }
 
             if selected_tab == DetailTab::Info {
