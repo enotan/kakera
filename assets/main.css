@@ -1163,6 +1163,12 @@ select option {
   outline: 2px solid var(--danger-border);
 }
 
+.field-error {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
 .field-invalid:focus {
   border-color: var(--danger);
   outline-color: var(--danger-border);

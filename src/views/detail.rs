@@ -43,6 +43,8 @@ pub fn DetailView(
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
+    let mut route_name_has_error = use_signal(|| false);
+    let route_name_error_is_visible = *route_name_has_error.read();
 
     let executable_path_text = match vn.executable_path.clone() {
         Some(path) => path,
@@ -679,22 +681,41 @@ pub fn DetailView(
                         "New route"
 
                         input {
+                            class: if route_name_error_is_visible {
+                                "field-invalid"
+                            } else {
+                                ""
+                            },
+
                             value: "{typed_route_name}",
 
                             oninput: move |event| {
+                                let value = event.value();
+
+                                if !value.trim().is_empty() {
+                                    route_name_has_error.set(false);
+                                }
+
                                 new_route_name.set(event.value());
                             },
                         }
                     }
 
+                    if route_name_error_is_visible {
+                        p { class: "field-error", "Route name is required." }
+                    }
+
                     button {
                         onclick: move |_| {
-                            let route_name = new_route_name.read().clone();
+                            let route_name = new_route_name.read().trim().to_string();
 
-                            if !route_name.is_empty() {
-                                on_route_add.call((vn.id, route_name));
-                                new_route_name.set(String::new());
+                            if route_name.is_empty() {
+                                route_name_has_error.set(true);
+                                return;
                             }
+
+                            on_route_add.call((vn.id, route_name));
+                            new_route_name.set(String::new());
                         },
 
                         "Add route"
