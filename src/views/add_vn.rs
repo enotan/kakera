@@ -25,6 +25,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
     let mut search_message = use_signal(String::new);
 
     let mut title_has_error = use_signal(|| false);
+    let mut loaded_result_id = use_signal(|| None::<String>);
 
     let message_text = search_message.read().clone();
     let results_to_show = search_results.read().clone();
@@ -125,6 +126,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                     description.set(String::new());
                     cover_path.set(None);
                     cover_url.set(None);
+                    loaded_result_id.set(None);
                 },
 
                 "Add to library"
@@ -140,6 +142,8 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                         return;
                     }
 
+                    loaded_result_id.set(None);
+                    
                     search_message.set("Searching VNDB...".to_string());
 
                     spawn(async move {
@@ -166,6 +170,8 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                         let result_title = result.title.clone();
                         let result_description = result.description.clone();
                         let result_cover_url = result.image.clone().and_then(|image| image.url);
+                        let result_id = result.id.clone();
+                        let result_is_loaded = loaded_result_id.read().as_ref() == Some(&result.id);
 
                         rsx! {
                             article {
@@ -173,16 +179,26 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                                 p { "VNDB ID: {result.id}" }
 
                                 button {
+                                    class: if result_is_loaded {
+                                        "vndb-result-button loaded"
+                                    } else {
+                                        "vndb-result-button"
+                                    },
+
                                     onclick: move |_| {
                                         title.set(result_title.clone());
-
                                         description.set(result_description.clone().unwrap_or_default());
                                         cover_url.set(result_cover_url.clone());
                                         cover_path.set(None);
+                                        loaded_result_id.set(Some(result_id.clone()));
                                         search_message.set(format!("Loaded {}.", result_title));
                                     },
 
-                                    "Use this result"
+                                    if result_is_loaded {
+                                        "Loaded"
+                                    } else {
+                                        "Use this result"
+                                    }
                                 }
                             }
                         }

@@ -1218,6 +1218,12 @@ select option {
     color: var(--text);
 }
 
+.vndb-result-button.loaded {
+  border-color: var(--accent);
+  background: var(--acent-soft);
+  color: var(--text);
+}
+
 @media (max-width: 1100px) {
   .app-layout {
     grid-template-columns: 1fr;
