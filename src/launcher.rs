@@ -16,6 +16,7 @@ pub fn launch_executable(
     proton_path: Option<String>,
     umu_game_id: String,
     launch_arguments: String,
+    launch_environment: Vec<(String, String)>,
     launch_log_path: Option<PathBuf>,
 ) -> Result<Child, io::Error> {
     let path = PathBuf::from(executable_path);
@@ -45,7 +46,7 @@ pub fn launch_executable(
         LaunchMode::Native => {
             let mut command = host_command(
                 path.to_string_lossy().to_string(),
-                Vec::new(),
+                launch_environment.clone(),
                 working_directory.clone(),
             );
 
@@ -55,7 +56,7 @@ pub fn launch_executable(
         }
         LaunchMode::Wine => {
             let wine_command = wine_binary.unwrap_or_else(|| "wine".to_string());
-            let mut environment = Vec::new();
+            let mut environment = launch_environment.clone();
 
             if let Some(prefix) = wine_prefix {
                 environment.push(("WINEPREFIX".to_string(), prefix));
@@ -78,7 +79,7 @@ pub fn launch_executable(
         }
         LaunchMode::Proton => {
             //use umu launcher
-            let mut environment = Vec::new();
+            let mut environment = launch_environment.clone();
 
             if let Some(prefix) = wine_prefix {
                 environment.push(("WINEPREFIX".to_string(), prefix));
@@ -178,4 +179,39 @@ fn attach_launch_log(
     if let Some(file) = stderr_log {
         command.stderr(Stdio::from(file));
     }
+}
+
+///parse env vars into real env vars
+pub fn parse_launch_environment(environment_text: String) -> Result<Vec<(String, String)>, String> {
+    let mut environment = Vec::new();
+
+    for (index, line) in environment_text.lines().enumerate() {
+        let line = line.trim();
+
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let Some((name, value)) = line.split_once('=') else {
+            return Err(format!("Line {} must be KEY=value", index + 1));
+        };
+
+        let name = name.trim();
+        let value = value.trim();
+
+        if name.is_empty() {
+            return Err(format!("Line {} has an empty variable name", index + 1));
+        }
+
+        if name.contains(char::is_whitespace) {
+            return Err(format!(
+                "Line {} has whitespace in the variable name",
+                index + 1
+            ));
+        }
+
+        environment.push((name.to_string(), value.to_string()));
+    }
+
+    Ok(environment)
 }

@@ -618,6 +618,33 @@ img {
   display: grid;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+.detail-tab-content > * {
+  min-height: 0;
+}
+
+.detail-tab-content label {
+  align-content: start;
+}
+
+.detail-tab-content input:not([type="checkbox"]),
+.detail-tab-content select {
+  min-height: 44px;
+  height: 44px;
+}
+
+.detail-tab-content button {
+  min-height: 44px;
+}
+
+
+.launch-env-input {
+  min-height: 96px;
+  max-height: 180px;
+  resize: vertical;
 }
 
 .detail-launch-footer {
@@ -867,7 +894,7 @@ select option {
   overflow-wrap: anywhere;
 }
 
-.route-delete-button {
+.detail-tab-content .route-delete-button {
   width: var(--route-action-size);
   min-width: var(--route-action-size);
   max-width: var(--route-action-size);

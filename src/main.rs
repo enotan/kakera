@@ -12,7 +12,7 @@ mod wine;
 
 use covers::cache_cover_image;
 use discord_presence::DiscordPresence;
-use launcher::launch_executable;
+use launcher::{launch_executable, parse_launch_environment};
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
     AppNotification, AppSettings, LaunchMode, NotificationLevel, PlaySession, StoryRoute,
@@ -357,6 +357,7 @@ fn App() -> Element {
                                                     wine_prefix: None,
                                                     wine_locale: None,
                                                     launch_arguments: String::new(),
+                                                    launch_environment: String::new(),
                                                     proton_path: None,
                                                     umu_game_id: default_umu_game_id(),
                                                     notes: String::new(),
@@ -531,6 +532,19 @@ fn App() -> Element {
                                                                     None
                                                                 }
                                                             };
+                                                            let launch_environment = match parse_launch_environment(
+                                                                vn.launch_environment.clone(),
+                                                            ) {
+                                                                Ok(environment) => environment,
+                                                                Err(error) => {
+                                                                    notification.set(Some(AppNotification {
+                                                                        level: NotificationLevel::Error,
+                                                                        message: format!("Could not launch VN: {error}"),
+                                                                    }));
+
+                                                                    return;
+                                                                }
+                                                            };
                                                             match launch_executable(
                                                                 path,
                                                                 vn.launch_mode,
@@ -540,6 +554,7 @@ fn App() -> Element {
                                                                 vn.proton_path,
                                                                 vn.umu_game_id,
                                                                 vn.launch_arguments,
+                                                                launch_environment,
                                                                 launch_log_path.clone(),
                                                             ) {
                                                                 Ok(mut child) => {
@@ -741,6 +756,18 @@ fn App() -> Element {
                                                     vn.launch_arguments = arguments;
                                                 },
                                                 "Could not save launch arguments".to_string(),
+                                            );
+                                        },
+
+                                        //when editing env vars
+                                        on_launch_environment_change: move |(id, environment): (u64, String)| {
+                                            update_vn_and_save(
+                                                &mut vns,
+                                                id,
+                                                move |vn| {
+                                                    vn.launch_environment = environment;
+                                                },
+                                                "Could not save env vars".to_string(),
                                             );
                                         },
 
