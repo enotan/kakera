@@ -12,6 +12,7 @@ pub fn SettingsView(
     on_discord_show_active_route_change: EventHandler<bool>,
     on_discord_custom_cover_url_change: EventHandler<String>,
     on_open_data_folder: EventHandler<()>,
+    on_open_logs_folder: EventHandler<()>,
 ) -> Element {
     let mut discord_status_text_draft = use_signal(|| discord_status_text.clone());
     let mut discord_custom_cover_url_draft = use_signal(|| discord_custom_cover_url.clone());
@@ -103,6 +104,16 @@ pub fn SettingsView(
                     },
 
                     "Open data folder"
+                }
+
+                button {
+                    class: "fp-button",
+
+                    onclick: move |_| {
+                        on_open_logs_folder.call(());
+                    },
+
+                    "Open logs folder"
                 }
             }
         }
