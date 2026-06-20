@@ -165,39 +165,56 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
             p { "{message_text}" }
 
             div {
-                for result in results_to_show {
-                    {
-                        let result_title = result.title.clone();
-                        let result_description = result.description.clone();
-                        let result_cover_url = result.image.clone().and_then(|image| image.url);
-                        let result_id = result.id.clone();
-                        let result_is_loaded = loaded_result_id.read().as_ref() == Some(&result.id);
+                div { class: "vndb-results-grid",
+                    for result in results_to_show {
+                        {
+                            let result_title = result.title.clone();
+                            let result_description = result.description.clone();
+                            let result_cover_url = result.image.clone().and_then(|image| image.url);
+                            let result_id = result.id.clone();
+                            let result_is_loaded = loaded_result_id.read().as_ref() == Some(&result.id);
 
-                        rsx! {
-                            article {
-                                h3 { "{result.title}" }
-                                p { "VNDB ID: {result.id}" }
+                            rsx! {
+                                article { class: "vndb-result-card",
+                                    div { class: "vndb-result-cover-frame",
 
-                                button {
-                                    class: if result_is_loaded {
-                                        "vndb-result-button loaded"
-                                    } else {
-                                        "vndb-result-button"
-                                    },
+                                        if let Some(cover_src) = result_cover_url.clone() {
+                                            img {
+                                                class: "vndb-result-cover",
+                                                src: "{cover_src}",
+                                                alt: "Cover art for {result.title}",
+                                            }
+                                        } else {
+                                            div { class: "vndb-result-cover-placeholder", "No cover" }
+                                        }
+                                    }
 
-                                    onclick: move |_| {
-                                        title.set(result_title.clone());
-                                        description.set(result_description.clone().unwrap_or_default());
-                                        cover_url.set(result_cover_url.clone());
-                                        cover_path.set(None);
-                                        loaded_result_id.set(Some(result_id.clone()));
-                                        search_message.set(format!("Loaded {}.", result_title));
-                                    },
+                                    div { class: "vndb-result-body",
+                                        h3 { "{result.title}" }
+                                        p { "VNDB ID: {result.id}" }
 
-                                    if result_is_loaded {
-                                        "Loaded"
-                                    } else {
-                                        "Use this result"
+                                        button {
+                                            class: if result_is_loaded {
+                                                "vndb-result-button loaded"
+                                            } else {
+                                                "vndb-result-button"
+                                            },
+
+                                            onclick: move |_| {
+                                                title.set(result_title.clone());
+                                                description.set(result_description.clone().unwrap_or_default());
+                                                cover_url.set(result_cover_url.clone());
+                                                cover_path.set(None);
+                                                loaded_result_id.set(Some(result_id.clone()));
+                                                search_message.set(format!("Loaded {}.", result_title));
+                                            },
+
+                                            if result_is_loaded {
+                                                "Loaded"
+                                            } else {
+                                                "Use"
+                                            }
+                                        }
                                     }
                                 }
                             }
