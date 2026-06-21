@@ -29,7 +29,7 @@ jobs:
 
       - name: Build Windows bundles
         run: |
-          dx bundle --release --platform windows --package-types exe --package-types msi
+          dx bundle --release --platform windows --package-types nsis --package-types msi
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -95,9 +95,7 @@ jobs:
 
       - name: Add Flathub
         run: |
-          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-      - name: Build Flatpak
+          flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
         run: |
           flatpak-builder \
             --user \
