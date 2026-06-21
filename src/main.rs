@@ -22,11 +22,7 @@ use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use system::{
-    is_flatpak_document_portal_path, 
-    open_folder,
-    umu_launcher_is_available,
-};
+use system::{is_flatpak_document_portal_path, open_folder, umu_launcher_is_available};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
@@ -525,7 +521,7 @@ fn App() -> Element {
 
                                                                 return;
                                                             }
-                                                
+
                                                             let launch_log_path = match new_launch_log_path(
                                                                 vn.id,
                                                                 vn.title.clone(),

@@ -56,8 +56,7 @@ pub fn find_host_command(command_name: String) -> Option<String> {
 ///returns whether umu launcher is found or not
 pub fn umu_launcher_is_available() -> bool {
     if std::env::var_os("FLATPAK_ID").is_some() {
-        Path::new("/app/bin/umu-run").exists()
-            || find_host_command("umu-run".to_string()).is_some()
+        Path::new("/app/bin/umu-run").exists() || find_host_command("umu-run".to_string()).is_some()
     } else {
         find_host_command("umu-run".to_string()).is_some()
     }

@@ -1,6 +1,6 @@
 use crate::models::VisualNovel;
-use dioxus::prelude::*;
 use base64::Engine;
+use dioxus::prelude::*;
 use std::fs;
 
 //displays the vn library as a simple list of cards

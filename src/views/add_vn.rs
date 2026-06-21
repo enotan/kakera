@@ -143,7 +143,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                     }
 
                     loaded_result_id.set(None);
-                    
+
                     search_message.set("Searching VNDB...".to_string());
 
                     spawn(async move {
@@ -194,11 +194,7 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                                         p { "VNDB ID: {result.id}" }
 
                                         button {
-                                            class: if result_is_loaded {
-                                                "vndb-result-button loaded"
-                                            } else {
-                                                "vndb-result-button"
-                                            },
+                                            class: if result_is_loaded { "vndb-result-button loaded" } else { "vndb-result-button" },
 
                                             onclick: move |_| {
                                                 title.set(result_title.clone());

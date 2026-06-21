@@ -1,0 +1,121 @@
+name: Release builds
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs: 
+  windows:
+    name: Windows exe/msi
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Dioxus CLI
+        run: cargo install --locked dioxus-cli
+
+      - name: Install packing tools
+        run: |
+          choco install nsis -y
+          choco install wixtoolset -y
+
+      - name: Build Windows bundles
+        run: |
+          dx bundle --release --platform windows --package-types exe --package-types msi
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kakera-windows
+          path: |
+            target/dx/kakera/bundle/windows/**/*.exe
+            target/dx/kakera/bundle/windows/**/*.msi
+
+  linux:
+    name: Linux deb/appimage
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            xdg-utils \
+            lld
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Dioxus CLI
+        run: cargo install --locked dioxus-cli
+
+      - name: Build Linux bundles
+        run: |
+          dx bundle --release --platform linux --package-types deb --package-types appimage
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kakera-linux
+          path: |
+            target/dx/kakera/bundle/linux/**/*.deb
+            target/dx/kakera/bundle/linux/**/*.AppImage
+            target/dx/kakera/bundle/linux/**/*.appimage
+
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt update
+          sudo apt install -y flatpak flatpak-builder git
+
+      - name: Add Flathub
+        run: |
+          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build Flatpak
+        run: |
+          flatpak-builder \
+            --user \
+            --force-clean \
+            --install-deps-from=flathub \
+            --repo=flatpak-repo \
+            flatpak-build \
+            xyz.majou.Kakera.yml
+
+      - name: Build Flatpak bundle
+        run: |
+          flatpak build-bundle \
+            flatpak-repo \
+            Kakera_${{ github.ref_name }}_x86_64.flatpak \
+            xyz.majou.Kakera
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kakera-flatpak
+          path: "*.flatpak"

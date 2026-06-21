@@ -603,17 +603,14 @@ pub fn DetailView(
                                             option { value: "", "System locale" }
                                             option { value: "ja_JP.UTF-8", "Japanese" }
                                             option { value: "zh_CN.UTF-8", "Chinese Simplified" }
-                                            option { value: "ko_KR.UTF-8", "Korean"}
+                                            option { value: "ko_KR.UTF-8", "Korean" }
                                             option { value: "en_US.UTF-8", "English US" }
 
-                                            if !wine_locale_value.is_empty()
-                                                && wine_locale_value != "ja_JP.UTF-8"
-                                                && wine_locale_value != "zh_CN.UTF-8"
-                                                && wine_locale_value != "ko_KR.UTF-8"
+                                            if !wine_locale_value.is_empty() && wine_locale_value != "ja_JP.UTF-8"
+                                                && wine_locale_value != "zh_CN.UTF-8" && wine_locale_value != "ko_KR.UTF-8"
                                                 && wine_locale_value != "en_US.UTF-8"
                                             {
-                                                option {
-                                                    value: "{wine_locale_value}",
+                                                option { value: "{wine_locale_value}",
                                                     "Custom - {wine_locale_value}"
                                                 }
                                             }
@@ -667,10 +664,8 @@ pub fn DetailView(
                                         },
 
                                         onblur: move |_| {
-                                            on_launch_environment_change.call((
-                                                vn.id,
-                                                launch_environment_draft.read().clone(),
-                                            ));
+                                            on_launch_environment_change
+                                                .call((vn.id, launch_environment_draft.read().clone()));
                                         },
                                     }
                                 }
@@ -715,11 +710,7 @@ pub fn DetailView(
                         "New route"
 
                         input {
-                            class: if route_name_error_is_visible {
-                                "field-invalid"
-                            } else {
-                                ""
-                            },
+                            class: if route_name_error_is_visible { "field-invalid" } else { "" },
 
                             value: "{typed_route_name}",
 
@@ -804,10 +795,7 @@ pub fn DetailView(
                                 .pick_file();
 
                             if let Some(path) = picked_file {
-                                on_run_tool.call((
-                                    vn.id,
-                                    path.to_string_lossy().to_string(),
-                                ));
+                                on_run_tool.call((vn.id, path.to_string_lossy().to_string()));
                             }
                         },
 
