@@ -2885,6 +2885,7 @@ dependencies = [
 name = "kakera"
 version = "0.1.1"
 dependencies = [
+ "base64",
  "chrono",
  "dioxus",
  "dirs",
