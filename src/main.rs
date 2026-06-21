@@ -673,6 +673,102 @@ fn App() -> Element {
                                             }
                                         },
 
+                                        //when running an exe in the wine prefix
+                                        on_run_tool: move |(id, tool_path): (u64, String)| {
+                                            let vn = vns
+                                                .read()
+                                                .iter()
+                                                .find(|vn| vn.id == id)
+                                                .cloned();
+
+                                            let Some(vn) = vn else {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: "Could not run exe: VN was not found.".to_string(),
+                                                }));
+
+                                                return;
+                                            };
+
+                                            if vn.launch_mode == LaunchMode::Proton && !umu_launcher_is_available() {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: "Could not run tool: UMU Launcher was not found. Install umu-launcher to run tools with Proton.".to_string(),
+                                                }));
+
+                                                return;
+                                            }
+
+                                            let launch_environment = match parse_launch_environment(
+                                                vn.launch_environment.clone(),
+                                            ) {
+                                                Ok(environment) => environment,
+                                                Err(error) => {
+                                                    notification.set(Some(AppNotification {
+                                                        level: NotificationLevel::Error,
+                                                        message: format!("Could not run tool: {error}"),
+                                                    }));
+
+                                                    return;
+                                                }
+                                            };
+
+                                            let launch_log_path = match new_launch_log_path(
+                                                vn.id,
+                                                format!("{} tool", vn.title),
+                                            ) {
+                                                Ok(path) => Some(path),
+                                                Err(error) => {
+                                                    notification.set(Some(AppNotification {
+                                                        level: NotificationLevel::Warning,
+                                                        message: format!("Could not create tool log: {error}"),
+                                                    }));
+
+                                                    None
+                                                }
+                                            };
+
+                                            match launch_executable(
+                                                tool_path,
+                                                vn.launch_mode,
+                                                vn.wine_binary,
+                                                vn.wine_prefix,
+                                                vn.wine_locale,
+                                                vn.proton_path,
+                                                vn.umu_game_id,
+                                                vn.launch_arguments,
+                                                launch_environment,
+                                                launch_log_path.clone(),
+                                            ) {
+                                                Ok(mut child) => {
+                                                    notification.set(Some(AppNotification {
+                                                        level: NotificationLevel::Info,
+                                                        message: format!("Started tool for {}.", vn.title),
+                                                    }));
+
+                                                    thread::spawn(move || {
+                                                        let wait_result = child.wait();
+
+                                                        if let Some(log_path) = launch_log_path {
+                                                            if let Err(error) = update_latest_launch_log(&log_path) {
+                                                                println!("Could not update ltatest launch log: {error}");
+                                                            }
+                                                        }
+
+                                                        if let Err(error) = wait_result {
+                                                            println!("Tool process wait failed: {error}");
+                                                        }
+                                                    });
+                                                }
+                                                Err(error) => {
+                                                    notification.set(Some(AppNotification {
+                                                        level: NotificationLevel::Error,
+                                                        message: format!("Could not run tool: {error}"),
+                                                    }));
+                                                }
+                                            }
+                                        },
+
                                         //when changing launch mode
                                         on_launch_mode_change: move |(id, launch_mode): (u64, LaunchMode)| {
                                             update_vn_and_save(
