@@ -587,11 +587,44 @@ pub fn DetailView(
                                     "Choose prefix folder"
                                 }
 
+                                div { class: "locale-field",
+                                    label {
+                                        "Wine locale preset"
+
+                                        select {
+                                            value: "{wine_locale_value}",
+
+                                            onchange: move |event| {
+                                                let locale = event.value();
+                                                wine_locale_draft.set(locale.clone());
+                                                on_wine_locale_change.call((vn.id, locale));
+                                            },
+
+                                            option { value: "", "System locale" }
+                                            option { value: "ja_JP.UTF-8", "Japanese" }
+                                            option { value: "zh_CN.UTF-8", "Chinese Simplified" }
+                                            option { value: "ko_KR.UTF-8", "Korean"}
+                                            option { value: "en_US.UTF-8", "English US" }
+
+                                            if !wine_locale_value.is_empty()
+                                                && wine_locale_value != "ja_JP.UTF-8"
+                                                && wine_locale_value != "zh_CN.UTF-8"
+                                                && wine_locale_value != "ko_KR.UTF-8"
+                                                && wine_locale_value != "en_US.UTF-8"
+                                            {
+                                                option {
+                                                    value: "{wine_locale_value}",
+                                                    "Custom - {wine_locale_value}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 label {
-                                    "Wine locale"
+                                    "Custom Wine locale"
 
                                     input {
-                                        placeholder: "ja_JP.UTF-8",
+                                        placeholder: "Leave blank for system locale",
                                         value: "{wine_locale_value}",
 
                                         oninput: move |event| {
