@@ -1311,6 +1311,11 @@ select option {
   color: var(--text);
 }
 
+.locale-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
 @media (max-width: 1100px) {
   .app-layout {
     grid-template-columns: 1fr;
