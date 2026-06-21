@@ -22,7 +22,11 @@ use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use system::{find_host_command, is_flatpak_document_portal_path, open_folder};
+use system::{
+    is_flatpak_document_portal_path, 
+    open_folder,
+    umu_launcher_is_available,
+};
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
@@ -110,10 +114,7 @@ fn App() -> Element {
     let mut search_query = use_signal(String::new);
     let mut show_add_form = use_signal(|| false);
 
-    let umu_is_available = use_hook(|| {
-        std::env::var_os("FLATPAK_ID").is_some()
-            || find_host_command("umu-run".to_string()).is_some()
-    });
+    let umu_is_available = use_hook(umu_launcher_is_available);
 
     let mut notification = use_signal(|| {
         if cfg!(target_os = "linux") && !umu_is_available {
@@ -516,6 +517,15 @@ fn App() -> Element {
 
                                                     match vn.executable_path {
                                                         Some(path) => {
+                                                            if vn.launch_mode == LaunchMode::Proton && !umu_launcher_is_available() {
+                                                                notification.set(Some(AppNotification {
+                                                                    level: NotificationLevel::Error,
+                                                                    message: "Could not launch VN: UMU Launcher was not found. Install umu-launcher to run games with Proton.".to_string(),
+                                                                }));
+
+                                                                return;
+                                                            }
+                                                
                                                             let launch_log_path = match new_launch_log_path(
                                                                 vn.id,
                                                                 vn.title.clone(),
