@@ -65,5 +65,17 @@ pub fn umu_launcher_is_available() -> bool {
 
 ///return true when a path is coming from /run/flatpak/doc/
 pub fn is_flatpak_document_portal_path(path: &str) -> bool {
-    path.starts_with("/run/flatpak/doc/")
+    if path.starts_with("/run/flatpak/doc/") {
+        return true;
+    }
+
+    let Some(path_after_run_user) = path.strip_prefix("/run/user/") else {
+        return false;
+    };
+
+    let Some((_user_id, path_after_user_id)) = path_after_run_user.split_once('/') else {
+        return false;
+    };
+
+    path_after_user_id.starts_with("doc/")
 }

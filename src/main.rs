@@ -482,7 +482,7 @@ fn App() -> Element {
                                                     .set(
                                                         Some(AppNotification {
                                                             level: NotificationLevel::Error,
-                                                            message: "That executable was selected through Flatpak's temp document portal. Move the game into a normal folder such as ~/Games, then type or select the real path."
+                                                            message: "The executable has been selected through Flatpak's temporary document portal. Move the game into a normal folder such as ~/Games, then type or select the real path."
                                                                 .to_string(),
                                                         }),
                                                     );
@@ -731,7 +731,18 @@ fn App() -> Element {
 
                                         //when changing wine prefix
                                         on_wine_prefix_change: move |(id, prefix): (u64, String)| {
-                                            let wine_prefix = if prefix.is_empty() { None } else { Some(prefix) };
+                                            let trimmed_prefix = prefix.trim().to_string();
+
+                                            if is_flatpak_document_portal_path(&trimmed_prefix) {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: "The Wine prefix has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path.".to_string(),
+                                                }));
+
+                                                return;
+                                            }
+
+                                            let wine_prefix = if trimmed_prefix.is_empty() { None } else { Some(trimmed_prefix) };
                                             update_vn_and_save(
                                                 &mut vns,
                                                 id,
@@ -805,11 +816,21 @@ fn App() -> Element {
 
                                         //when changing cover
                                         on_cover_path_change: move |(id, cover_path): (u64, String)| {
+                                            let trimmed_cover_path = cover_path.trim().to_string();
+
+                                            if is_flatpak_document_portal_path(&trimmed_cover_path) {
+                                                notification.set(Some(AppNotification {
+                                                    level: NotificationLevel::Error,
+                                                    message: "The cover image has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path.".to_string(),
+                                                }));
+
+                                                return;
+                                            }
                                             update_vn_and_save(
                                                 &mut vns,
                                                 id,
                                                 move |vn| {
-                                                    vn.cover_path = Some(cover_path);
+                                                    vn.cover_path = Some(trimmed_cover_path);
                                                 },
 
                                                 "Could not save cover image".to_string(),
