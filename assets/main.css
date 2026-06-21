@@ -648,6 +648,8 @@ img {
 }
 
 .detail-launch-footer {
+  display: grid;
+  gap: var(--space-2);
   padding: var(--space-3) var(--space-5) var(--space-5);
   border-top: 1px solid var(--line);
   background:
@@ -1294,6 +1296,19 @@ select option {
 .vndb-result-button {
   width: 100%;
   height: 40px;
+}
+
+.secondary-launch-button {
+  width: 100%;
+  border-color: var(--line-strong);
+  background: var(--bg-input);
+  color: var(--muted);
+}
+
+.secondary-launch-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 @media (max-width: 1100px) {

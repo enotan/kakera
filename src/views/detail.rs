@@ -26,6 +26,7 @@ pub fn DetailView(
     on_route_toggle: EventHandler<(u64, String)>,
     on_executable_path_change: EventHandler<(u64, String)>,
     on_launch: EventHandler<u64>,
+    on_run_tool: EventHandler<(u64, String)>,
     on_launch_mode_change: EventHandler<(u64, LaunchMode)>,
     on_wine_binary_change: EventHandler<(u64, String)>,
     on_proton_path_change: EventHandler<(u64, String)>,
@@ -757,6 +758,29 @@ pub fn DetailView(
             }
 
             div { class: "detail-launch-footer",
+
+                //if using wine/proton, allow them to launch an exe in the prefix
+                if vn.launch_mode != LaunchMode::Native {
+                    button {
+                        class: "secondary-launch-button",
+
+                        onclick: move |_| {
+                            let picked_file = FileDialog::new()
+                                .add_filter("Executables", &["exe", "bin", "sh", "AppImage"])
+                                .add_filter("All Files", &["*"])
+                                .pick_file();
+
+                            if let Some(path) = picked_file {
+                                on_run_tool.call((
+                                    vn.id,
+                                    path.to_string_lossy().to_string(),
+                                ));
+                            }
+                        },
+
+                        "Run .exe inside prefix"
+                    }
+                }
                 //launch button
                 button {
                     class: "launch-button",
