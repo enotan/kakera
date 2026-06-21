@@ -95,4 +95,4 @@ modules:
 
       - type: git
         url: https://github.com/enotan/kakera.git
-        branch: feat/bundled-umu
+        branch: main
