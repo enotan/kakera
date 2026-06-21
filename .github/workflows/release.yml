@@ -96,6 +96,8 @@ jobs:
       - name: Add Flathub
         run: |
           flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+     
+      - name: Build Flatpak
         run: |
           flatpak-builder \
             --user \
