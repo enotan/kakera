@@ -62,6 +62,15 @@ enum AppView {
     Settings,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum LibrarySortMode {
+    Added,
+    TitleAsc,
+    TitleDesc,
+    LastPlayed,
+    MostPlaytime,
+}
+
 ///for resizing the window on linux
 #[component]
 fn ResizeHandle(class: String, direction: ResizeDirection) -> Element {
@@ -110,6 +119,9 @@ fn App() -> Element {
     let mut search_query = use_signal(String::new);
     let mut show_add_form = use_signal(|| false);
 
+    let mut library_sort_mode = use_signal(|| LibrarySortMode::Added);
+    let selected_sort_mode = library_sort_mode.read().clone();
+
     let umu_is_available = use_hook(umu_launcher_is_available);
 
     let mut notification = use_signal(|| {
@@ -129,12 +141,28 @@ fn App() -> Element {
 
     let search_text = search_query.read().to_lowercase();
 
-    let filtered_vns: Vec<VisualNovel> = vns
+    let mut filtered_vns: Vec<VisualNovel> = vns
         .read()
         .iter()
         .filter(|vn| vn.title.to_lowercase().contains(&search_text))
         .cloned()
         .collect();
+
+    match selected_sort_mode {
+        LibrarySortMode::Added => {}
+        LibrarySortMode::TitleAsc => {
+            filtered_vns.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        }
+        LibrarySortMode::TitleDesc => {
+            filtered_vns.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
+        }
+        LibrarySortMode::LastPlayed => {
+            filtered_vns.sort_by(|a, b| latest_played_at(b).cmp(&latest_played_at(a)));
+        }
+        LibrarySortMode::MostPlaytime => {
+            filtered_vns.sort_by(|a, b| total_playtime_seconds(b).cmp(&total_playtime_seconds(a)));
+        }
+    }
 
     let desktop = dioxus::desktop::window();
     let drag_win = desktop.clone();
@@ -303,6 +331,38 @@ fn App() -> Element {
                             oninput: move |event| {
                                 search_query.set(event.value());
                             },
+                        }
+
+                        //sort vns
+                        select {
+                            class: "sort-select",
+
+                            value: match selected_sort_mode {
+                                LibrarySortMode::Added => "added",
+                                LibrarySortMode::TitleAsc => "title-asc",
+                                LibrarySortMode::TitleDesc => "title-desc",
+                                LibrarySortMode::LastPlayed => "last-played",
+                                LibrarySortMode::MostPlaytime => "most-playtime",
+                            },
+
+                            onchange: move |event| {
+                                let sort_mode = match event.value().as_str() {
+                                    "title-asc" => LibrarySortMode::TitleAsc,
+                                    "title-desc" => LibrarySortMode::TitleDesc,
+                                    "last-played" => LibrarySortMode::LastPlayed,
+                                    "most-playtime" => LibrarySortMode::MostPlaytime,
+                                    _ => LibrarySortMode::Added,
+                                };
+
+                                library_sort_mode.set(sort_mode);
+                            },
+
+                            option { value: "added", "Added" }
+                            option { value: "title-asc", "A-Z" }
+                            option { value: "title-desc", "Z-A" }
+                            option { value: "last-played", "Last Played" }
+                            option { value: "most-playtime", "Most Playtime" }
+
                         }
 
                         //add vn button
@@ -1152,4 +1212,19 @@ fn save_settings_or_log(settings: &Signal<AppSettings>) {
     if let Err(error) = save_result {
         println!("Could not save settings: {error}");
     }
+}
+
+fn latest_played_at(vn: &VisualNovel) -> String {
+    vn.play_sessions
+        .iter()
+        .map(|session| session.started_at.clone())
+        .max()
+        .unwrap_or_default()
+}
+
+fn total_playtime_seconds(vn: &VisualNovel) -> u64 {
+    vn.play_sessions
+        .iter()
+        .map(|session| session.duration_seconds)
+        .sum()
 }
