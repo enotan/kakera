@@ -18,6 +18,9 @@ pub struct VisualNovel {
     pub description: Option<String>,
 
     #[serde(default)]
+    pub is_favourite: bool,
+
+    #[serde(default)]
     pub cover_path: Option<String>,
 
     #[serde(default)]

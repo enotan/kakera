@@ -71,6 +71,12 @@ enum LibrarySortMode {
     MostPlaytime,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum LibraryFilterMode {
+    All,
+    Favourites,
+}
+
 ///for resizing the window on linux
 #[component]
 fn ResizeHandle(class: String, direction: ResizeDirection) -> Element {
@@ -122,6 +128,9 @@ fn App() -> Element {
     let mut library_sort_mode = use_signal(|| LibrarySortMode::Added);
     let selected_sort_mode = library_sort_mode.read().clone();
 
+    let mut library_filter_mode = use_signal(|| LibraryFilterMode::All);
+    let selected_filter_mode = library_filter_mode.read().clone();
+
     let umu_is_available = use_hook(umu_launcher_is_available);
 
     let mut notification = use_signal(|| {
@@ -144,7 +153,16 @@ fn App() -> Element {
     let mut filtered_vns: Vec<VisualNovel> = vns
         .read()
         .iter()
-        .filter(|vn| vn.title.to_lowercase().contains(&search_text))
+        .filter(|vn| {
+            let matches_search = vn.title.to_lowercase().contains(&search_text);
+
+            let matches_filter = match selected_filter_mode {
+                LibraryFilterMode::All => true,
+                LibraryFilterMode::Favourites => vn.is_favourite,
+            };
+
+            matches_search && matches_filter
+        })
         .cloned()
         .collect();
 
@@ -365,6 +383,28 @@ fn App() -> Element {
 
                         }
 
+                        //filter vns
+                        select {
+                            class: "filter-select",
+
+                            value: match selected_filter_mode {
+                                LibraryFilterMode::All => "all",
+                                LibraryFilterMode::Favourites => "favourites",
+                            },
+
+                            onchange: move |event| {
+                                let filter_mode = match event.value().as_str() {
+                                    "favourites" => LibraryFilterMode::Favourites,
+                                    _ => LibraryFilterMode::All,
+                                };
+
+                                library_filter_mode.set(filter_mode);
+                            },
+
+                            option { value: "all", "All" }
+                            option { value: "favourites", "Favourites" }
+                        }
+
                         //add vn button
                         button {
                             class: "icon-button",
@@ -407,6 +447,7 @@ fn App() -> Element {
                                                     title: new_vn.title,
                                                     cover_url: new_vn.cover_url,
                                                     description: new_vn.description,
+                                                    is_favourite: false,
                                                     cover_path: new_vn.cover_path,
                                                     executable_path: None,
                                                     launch_mode: LaunchMode::default(),
@@ -466,9 +507,23 @@ fn App() -> Element {
 
                                 LibraryView {
                                     vns: filtered_vns,
+
+                                    //when selecting a vn
                                     on_select: move |id| {
                                         selected_vn_id.set(Some(id));
 
+                                    },
+                                    
+                                    //when toggling vn as favourite
+                                    on_toggle_favourite: move |id| {
+                                        update_vn_and_save(
+                                            &mut vns,
+                                            id,
+                                            move |vn| {
+                                                vn.is_favourite = !vn.is_favourite;
+                                            },
+                                            "Could not save favourite".to_string(),
+                                        );
                                     },
                                 }
                             }
