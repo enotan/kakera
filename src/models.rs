@@ -100,6 +100,35 @@ pub struct AppNotification {
     pub message: String,
 }
 
+///the order to display vns in the library
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LibrarySortMode {
+    Added,
+    TitleAsc,
+    TitleDesc,
+    LastPlayed,
+    MostPlaytime,
+}
+
+impl Default for LibrarySortMode {
+    fn default() -> Self {
+        LibrarySortMode::Added
+    }
+}
+
+///the "categories" i guess? of vns that u can set in the library.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LibraryFilterMode {
+    All,
+    Favourites,
+}
+
+impl Default for LibraryFilterMode {
+    fn default() -> Self {
+        LibraryFilterMode::All
+    }
+}
+
 ///settings set in the settings panel
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -115,6 +144,12 @@ pub struct AppSettings {
 
     #[serde(default)]
     pub discord_custom_cover_url: String,
+
+    #[serde(default)]
+    pub library_sort_mode: LibrarySortMode,
+
+    #[serde(default)]
+    pub library_filter_mode: LibraryFilterMode,
 }
 
 fn default_discord_status_text() -> String {
@@ -128,6 +163,8 @@ impl Default for AppSettings {
             discord_status_text: default_discord_status_text(),
             discord_show_active_route: true,
             discord_custom_cover_url: String::new(),
+            library_sort_mode: LibrarySortMode::default(),
+            library_filter_mode: LibraryFilterMode::default(),
         }
     }
 }
