@@ -5,7 +5,11 @@ use std::fs;
 
 //displays the vn library as a simple list of cards
 #[component]
-pub fn LibraryView(vns: Vec<VisualNovel>, on_select: EventHandler<u64>) -> Element {
+pub fn LibraryView(
+    vns: Vec<VisualNovel>, 
+    on_select: EventHandler<u64>,
+    on_toggle_favourite: EventHandler<u64>,
+) -> Element {
     let library_is_empty = vns.is_empty();
     rsx! {
         section { class: "library-section",
@@ -18,28 +22,63 @@ pub fn LibraryView(vns: Vec<VisualNovel>, on_select: EventHandler<u64>) -> Eleme
                 div { class: "vn-grid",
 
                     for vn in vns {
-                        article {
+                        {
+                            let vn_id = vn.id;
+                            let favourite_button_class = if vn.is_favourite {
+                                "favourite-button active"
+                            } else {
+                                "favourite-button"
+                            };
 
-                            class: "vn-card",
+                            let favourite_label = if vn.is_favourite {
+                                "Remove from favourites"
+                            } else {
+                                "Add to favourites"
+                            };
 
-                            onclick: move |_| {
-                                on_select.call(vn.id);
-                            },
+                            rsx! {
+                                article {
 
-                            div { class: "vn-cover-frame",
+                                    class: "vn-card",
 
-                                if let Some(cover_src) = cover_source(vn.clone()) {
-                                    img {
-                                        class: "vn-cover",
-                                        src: "{cover_src}",
-                                        alt: "Cover art for {vn.title}",
+                                    onclick: move |_| {
+                                        on_select.call(vn.id);
+                                    },
+
+                                    button {
+                                        class: "{favourite_button_class}",
+                                        title: "{favourite_label}",
+                                        aria_label: "{favourite_label}",
+
+                                        onclick: move |event| {
+                                            event.stop_propagation();
+                                            on_toggle_favourite.call(vn_id);
+                                        },
+
+                                        if vn.is_favourite {
+                                            "★"
+                                        } else {
+                                            "☆"
+                                        }
+
                                     }
-                                } else {
-                                    div { class: "vn-cover-placeholder", "No cover" }
+
+                                    div { class: "vn-cover-frame",
+
+                                        if let Some(cover_src) = cover_source(vn.clone()) {
+                                            img {
+                                                class: "vn-cover",
+                                                src: "{cover_src}",
+                                                alt: "Cover art for {vn.title}",
+                                            }
+                                        } else {
+                                            div { class: "vn-cover-placeholder", "No cover" }
+                                        }
+                                    }
+
+                                    h3 { "{vn.title}" }
                                 }
                             }
-
-                            h3 { "{vn.title}" }
                         }
                     }
                 }
