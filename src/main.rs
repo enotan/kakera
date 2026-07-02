@@ -15,8 +15,16 @@ use discord_presence::DiscordPresence;
 use launcher::{launch_executable, parse_launch_environment};
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
-    AppNotification, AppSettings, LaunchMode, NotificationLevel, PlaySession, StoryRoute,
-    VisualNovel, default_umu_game_id,
+    AppNotification,
+    AppSettings, 
+    LaunchMode, 
+    NotificationLevel, 
+    PlaySession, 
+    StoryRoute,
+    VisualNovel, 
+    default_umu_game_id,
+    LibraryFilterMode,
+    LibrarySortMode,
 };
 use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
@@ -62,20 +70,6 @@ enum AppView {
     Settings,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum LibrarySortMode {
-    Added,
-    TitleAsc,
-    TitleDesc,
-    LastPlayed,
-    MostPlaytime,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum LibraryFilterMode {
-    All,
-    Favourites,
-}
 
 ///for resizing the window on linux
 #[component]
@@ -120,15 +114,18 @@ fn App() -> Element {
         None => None,
     };
 
+    let saved_library_sort_mode = saved_settings.library_sort_mode.clone();
+    let saved_library_filter_mode = saved_settings.library_filter_mode.clone();
+
     let mut settings = use_signal(move || saved_settings);
 
     let mut search_query = use_signal(String::new);
     let mut show_add_form = use_signal(|| false);
 
-    let mut library_sort_mode = use_signal(|| LibrarySortMode::Added);
+    let mut library_sort_mode = use_signal(|| saved_library_sort_mode);
     let selected_sort_mode = library_sort_mode.read().clone();
 
-    let mut library_filter_mode = use_signal(|| LibraryFilterMode::All);
+    let mut library_filter_mode = use_signal(|| saved_library_filter_mode);
     let selected_filter_mode = library_filter_mode.read().clone();
 
     let umu_is_available = use_hook(umu_launcher_is_available);
@@ -372,7 +369,9 @@ fn App() -> Element {
                                     _ => LibrarySortMode::Added,
                                 };
 
-                                library_sort_mode.set(sort_mode);
+                                library_sort_mode.set(sort_mode.clone());
+                                settings.write().library_sort_mode = sort_mode;
+                                save_settings_or_log(&settings);
                             },
 
                             option { value: "added", "Added" }
@@ -398,7 +397,9 @@ fn App() -> Element {
                                     _ => LibraryFilterMode::All,
                                 };
 
-                                library_filter_mode.set(filter_mode);
+                                library_filter_mode.set(filter_mode.clone());
+                                settings.write().library_filter_mode = filter_mode;
+                                save_settings_or_log(&settings);
                             },
 
                             option { value: "all", "All" }
