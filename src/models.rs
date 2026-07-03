@@ -21,6 +21,9 @@ pub struct VisualNovel {
     pub is_favourite: bool,
 
     #[serde(default)]
+    pub tags: Vec<String>,
+
+    #[serde(default)]
     pub cover_path: Option<String>,
 
     #[serde(default)]

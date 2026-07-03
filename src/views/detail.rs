@@ -37,6 +37,7 @@ pub fn DetailView(
     on_launch_arguments_change: EventHandler<(u64, String)>,
     on_launch_environment_change: EventHandler<(u64, String)>,
     on_description_change: EventHandler<(u64, String)>,
+    on_tags_change: EventHandler<(u64, Vec<String>)>,
     on_cover_path_change: EventHandler<(u64, String)>,
     on_cover_refresh: EventHandler<u64>,
     on_active_route_change: EventHandler<(u64, Option<String>)>,
@@ -92,6 +93,9 @@ pub fn DetailView(
     let description_value = description_draft.read().clone();
     let description_parts = parse_description(saved_description.clone());
 
+    let mut new_tag_text = use_signal(String::new);
+    let new_tag_value = new_tag_text.read().clone();
+    
     let mut active_tab = use_signal(|| DetailTab::Info);
     let selected_tab = active_tab.read().clone();
 
@@ -197,6 +201,82 @@ pub fn DetailView(
 
                                 "↻"
                             }
+                        }
+                    }
+
+                    h3 { "Tags" }
+
+                    div { class: "tag-editor",
+                        div { class: "tag-chip-list",
+                            if vn.tags.is_empty() {
+                                span { class: "tag-editor-empty", "No tags yet." }
+                            }
+
+                            for tag in vn.tags.iter() {
+                                {
+                                    let tag_to_remove = tag.clone();
+                                    let vn_id = vn.id;
+                                    let current_tags = vn.tags.clone();
+                                    let on_tags_change_for_remove = on_tags_change;
+
+                                    rsx! {
+                                        button {
+                                            class: "tag-chip editable",
+                                            title: "Remove tag",
+
+                                            onclick: move |_| {
+                                                let mut next_tags = current_tags.clone();
+
+                                                next_tags.retain(|tag| tag != &tag_to_remove);
+
+                                                on_tags_change_for_remove.call((vn_id, next_tags));
+                                            },
+
+                                            span { "{tag}" }
+                                            span { class: "tag-chip-remove", "✕" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+
+                        input {
+                            class: "tag-editor-input",
+                            value: "{new_tag_value}",
+                            placeholder: "Add a tag",
+
+
+                            oninput: move |event| {
+                                new_tag_text.set(event.value());
+                            },
+
+                            onkeydown: move |event| {
+                                let vn_id_for_add = vn.id;
+                                let current_tags_for_add = vn.tags.clone();
+                                let on_tags_change_for_add = on_tags_change;
+                                
+                                if event.key().to_string() == "Enter" {
+                                    let typed_tag = new_tag_text.read().trim().to_string();
+
+                                    if typed_tag.is_empty() {
+                                        return;
+                                    }
+
+                                    let mut next_tags = current_tags_for_add.clone();
+
+                                    let already_exists = next_tags
+                                        .iter()
+                                        .any(|tag| tag.eq_ignore_ascii_case(&typed_tag));
+
+                                    if !already_exists {
+                                        next_tags.push(typed_tag.to_string());
+                                        on_tags_change_for_add.call((vn_id_for_add, next_tags));
+                                    }
+
+                                    new_tag_text.set(String::new());
+                                }
+                            },
                         }
                     }
 

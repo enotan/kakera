@@ -117,6 +117,9 @@ fn App() -> Element {
     let saved_library_sort_mode = saved_settings.library_sort_mode.clone();
     let saved_library_filter_mode = saved_settings.library_filter_mode.clone();
 
+    let mut selected_tag_filter = use_signal(|| None::<String>);
+    let selected_tag = selected_tag_filter.read().clone();
+
     let mut settings = use_signal(move || saved_settings);
 
     let mut search_query = use_signal(String::new);
@@ -147,6 +150,15 @@ fn App() -> Element {
 
     let search_text = search_query.read().to_lowercase();
 
+    let mut available_tags: Vec<String> = vns
+        .read()
+        .iter()
+        .flat_map(|vn| vn.tags.clone())
+        .collect();
+
+    available_tags.sort_by_key(|tag| tag.to_lowercase());
+    available_tags.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+
     let mut filtered_vns: Vec<VisualNovel> = vns
         .read()
         .iter()
@@ -158,7 +170,15 @@ fn App() -> Element {
                 LibraryFilterMode::Favourites => vn.is_favourite,
             };
 
-            matches_search && matches_filter
+            let matches_tag = match selected_tag.clone() {
+                Some(tag) => vn
+                    .tags
+                    .iter()
+                    .any(|vn_tag| vn_tag.eq_ignore_ascii_case(&tag)),
+                None => true,
+            };
+
+            matches_search && matches_filter && matches_tag
         })
         .cloned()
         .collect();
@@ -406,6 +426,29 @@ fn App() -> Element {
                             option { value: "favourites", "Favourites" }
                         }
 
+                        //filter by tag
+                        select {
+                            class: "tag-filter-select",
+
+                            value: selected_tag.clone().unwrap_or_default(),
+
+                            onchange: move |event| {
+                                let value = event.value();
+
+                                if value.is_empty() {
+                                    selected_tag_filter.set(None);
+                                } else {
+                                    selected_tag_filter.set(Some(value));
+                                }
+                            },
+
+                            option { value: "", "All Tags" }
+
+                            for tag in available_tags {
+                                option { value: "{tag}", "{tag}" }
+                            }
+                        }
+
                         //add vn button
                         button {
                             class: "icon-button",
@@ -449,6 +492,7 @@ fn App() -> Element {
                                                     cover_url: new_vn.cover_url,
                                                     description: new_vn.description,
                                                     is_favourite: false,
+                                                    tags: new_vn.tags,
                                                     cover_path: new_vn.cover_path,
                                                     executable_path: None,
                                                     launch_mode: LaunchMode::default(),
@@ -1019,6 +1063,18 @@ fn App() -> Element {
                                                 },
 
                                                 "Could not save description".to_string(),
+                                            );
+                                        },
+
+                                        //when changing tags
+                                        on_tags_change: move |(id, tags): (u64, Vec<String>)| {
+                                            update_vn_and_save(
+                                                &mut vns,
+                                                id,
+                                                move |vn| {
+                                                    vn.tags = tags;
+                                                },
+                                                "Could not save tags".to_string(),
                                             );
                                         },
 

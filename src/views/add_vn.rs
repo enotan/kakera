@@ -8,6 +8,7 @@ pub struct NewVN {
     pub cover_url: Option<String>,
     pub cover_path: Option<String>,
     pub description: Option<String>,
+    pub tags: Vec<String>,
 }
 
 ///the form to add a visual novel
@@ -20,6 +21,9 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
 
     let description_text = description.read().clone();
     let cover_path_text = cover_path.read().clone();
+
+    let mut tags_text = use_signal(String::new);
+    let current_tags_text = tags_text.read().clone();
 
     let mut search_results: Signal<Vec<VndbSearchResult>> = use_signal(Vec::new);
     let mut search_message = use_signal(String::new);
@@ -78,6 +82,21 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                 }
             }
 
+            //add tags
+            label {
+                "Tags"
+
+                input {
+                    value: "{current_tags_text}",
+                    placeholder: "backlog, mystery, eroge",
+
+                    oninput: move |event| {
+                        tags_text.set(event.value());
+                    },
+
+                }
+            }
+
             //button to pick image
             button {
                 class: "fp-button",
@@ -121,12 +140,14 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
                             } else {
                                 Some(description.read().clone())
                             },
+                            tags: parse_tags(tags_text.read().clone()),
                         });
                     title.set(String::new());
                     description.set(String::new());
                     cover_path.set(None);
                     cover_url.set(None);
                     loaded_result_id.set(None);
+                    tags_text.set(String::new());
                 },
 
                 "Add to library"
@@ -220,4 +241,12 @@ pub fn AddVnForm(on_add: EventHandler<NewVN>, on_close: EventHandler<()>) -> Ele
             }
         }
     }
+}
+
+///turns comma separated tags into a vector
+fn parse_tags(text: String) -> Vec<String> {
+    text.split(",")
+        .map(|tag| tag.trim().to_string())
+        .filter(|tag| !tag.is_empty())
+        .collect()
 }
