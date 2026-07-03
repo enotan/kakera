@@ -76,7 +76,17 @@ pub fn LibraryView(
                                         }
                                     }
 
-                                    h3 { "{vn.title}" }
+                                    div { class: "vn-card-info",
+                                        h3 { "{vn.title}" }
+
+                                        if !vn.tags.is_empty() {
+                                            div { class: "vn-card-tags",
+                                                for tag in vn.tags.iter().take(3) {
+                                                    span { class: "vn-card-tag", "{tag}" }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
