@@ -14,7 +14,10 @@ pub fn LibraryView(
     rsx! {
         section { class: "library-section",
 
-            h2 { "Library" }
+            div { class: "library-heading",
+                h2 { "Library" }
+                span { class: "library-count", "{vns.len()}" }
+            }
 
             if library_is_empty {
                 p { "No visual novels in your library yet." }
