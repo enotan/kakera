@@ -26,7 +26,10 @@ use system::{is_flatpak_document_portal_path, open_folder, umu_launcher_is_avail
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
-use dioxus::desktop::{Config, WindowBuilder, icon_from_memory, tao::window::ResizeDirection};
+use dioxus::desktop::{
+    Config, WindowBuilder, icon_from_memory,
+    tao::{dpi::LogicalSize, window::ResizeDirection},
+};
 use dioxus::prelude::*;
 use std::thread;
 use std::time::Instant;
@@ -40,6 +43,7 @@ fn main() {
     let config = Config::new().with_window(
         WindowBuilder::new()
             .with_title("Kakera")
+            .with_min_inner_size(LogicalSize::new(760.0, 600.0))
             .with_decorations(false),
     );
 
@@ -360,7 +364,7 @@ fn App() -> Element {
                                 },
                             }
 
-                            label { class: "topbar-select-field",
+                            label { class: "topbar-select-field sort-field",
                                 span { class: "topbar-select-label", "Sort by" }
 
                                 div { class: "select-shell",
@@ -403,7 +407,7 @@ fn App() -> Element {
                                 }
                             }
 
-                            div { class: "topbar-select-field",
+                            div { class: "topbar-select-field view-field",
                                 span { class: "topbar-select-label", "View" }
 
                                 div { class: "topbar-segmented-control",

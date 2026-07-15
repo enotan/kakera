@@ -1854,28 +1854,94 @@ select option {
   padding: 28px;
 }
 
+@media (max-width: 1400px) {
+  .main-area {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .topbar {
+    grid-template-columns: 130px 210px 150px minmax(44px, 1fr);
+    grid-template-areas:
+      "search search search add"
+      "sort view tag .";
+    row-gap: 14px;
+  }
+
+  .search-input {
+    grid-area: search;
+  }
+
+  .sort-field {
+    grid-area: sort;
+  }
+
+  .view-field {
+    grid-area: view;
+  }
+
+  .tag-field {
+    grid-area: tag;
+  }
+
+  .topbar > .icon-button {
+    grid-area: add;
+    justify-self: end;
+  }
+}
+
 @media (max-width: 1100px) {
+  :root {
+    --sidebar-width: 168px;
+    --detail-width: 350px;
+  }
+
   .app-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) var(--detail-width);
+    gap: 16px;
+    padding: 0 18px 18px;
+  }
+
+  .topbar {
+    padding-right: 18px;
+    padding-left: 18px;
   }
 
   .detail-column {
-    border-left: 0;
-    border-top: 1px solid var(--line);
+    width: var(--detail-width);
+    max-width: var(--detail-width);
+    border-top: 0;
   }
 }
 
 @media (max-width: 760px) {
-  .app-frame {
-    grid-template-columns: 1fr;
+  :root {
+    --detail-width: 300px;
+  }
+
+  .app-body {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sidebar {
     display: none;
   }
 
+  .app-layout {
+    gap: 12px;
+    padding: 0 12px 12px;
+  }
+
+  .topbar {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
   .vn-grid {
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  }
+
+  .app-frame {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
