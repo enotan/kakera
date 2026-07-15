@@ -1,7 +1,6 @@
 use std::io;
 use std::path::Path;
 use std::process::Command;
-
 ///opens a folder
 pub fn open_folder(path: &Path) -> Result<(), io::Error> {
     let mut command = if cfg!(target_os = "windows") {
@@ -13,12 +12,9 @@ pub fn open_folder(path: &Path) -> Result<(), io::Error> {
         command.arg(path);
         command
     };
-
     command.spawn()?;
-
     Ok(())
 }
-
 ///finds the absolute path of a command
 pub fn find_host_command(command_name: String) -> Option<String> {
     let output = if std::env::var_os("FLATPAK_ID").is_some() {
@@ -38,21 +34,17 @@ pub fn find_host_command(command_name: String) -> Option<String> {
             .output()
     }
     .ok()?;
-
     if !output.status.success() {
         return None;
     }
-
     let path = String::from_utf8(output.stdout).ok()?;
     let path = path.trim();
-
     if path.is_empty() {
         None
     } else {
         Some(path.to_string())
     }
 }
-
 ///returns whether umu launcher is found or not
 pub fn umu_launcher_is_available() -> bool {
     if std::env::var_os("FLATPAK_ID").is_some() {
@@ -61,20 +53,16 @@ pub fn umu_launcher_is_available() -> bool {
         find_host_command("umu-run".to_string()).is_some()
     }
 }
-
 ///return true when a path is coming from /run/flatpak/doc/
 pub fn is_flatpak_document_portal_path(path: &str) -> bool {
     if path.starts_with("/run/flatpak/doc/") {
         return true;
     }
-
     let Some(path_after_run_user) = path.strip_prefix("/run/user/") else {
         return false;
     };
-
     let Some((_user_id, path_after_user_id)) = path_after_run_user.split_once('/') else {
         return false;
     };
-
     path_after_user_id.starts_with("doc/")
 }

@@ -15,16 +15,8 @@ use discord_presence::DiscordPresence;
 use launcher::{launch_executable, parse_launch_environment};
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
-    AppNotification,
-    AppSettings, 
-    LaunchMode, 
-    NotificationLevel, 
-    PlaySession, 
-    StoryRoute,
-    VisualNovel, 
-    default_umu_game_id,
-    LibraryFilterMode,
-    LibrarySortMode,
+    AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
+    NotificationLevel, PlaySession, StoryRoute, VisualNovel, default_umu_game_id,
 };
 use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
@@ -34,7 +26,10 @@ use system::{is_flatpak_document_portal_path, open_folder, umu_launcher_is_avail
 use views::{AddVnForm, DetailView, LibraryView, NewVN, SettingsView};
 
 use chrono::Utc;
-use dioxus::desktop::{Config, WindowBuilder, icon_from_memory, tao::window::ResizeDirection};
+use dioxus::desktop::{
+    Config, WindowBuilder, icon_from_memory,
+    tao::{dpi::LogicalSize, window::ResizeDirection},
+};
 use dioxus::prelude::*;
 use std::thread;
 use std::time::Instant;
@@ -48,6 +43,7 @@ fn main() {
     let config = Config::new().with_window(
         WindowBuilder::new()
             .with_title("Kakera")
+            .with_min_inner_size(LogicalSize::new(760.0, 600.0))
             .with_decorations(false),
     );
 
@@ -69,7 +65,6 @@ enum AppView {
     Library,
     Settings,
 }
-
 
 ///for resizing the window on linux
 #[component]
@@ -109,7 +104,10 @@ fn App() -> Element {
 
     let mut vns = use_signal(move || saved_library);
     let mut selected_vn_id = use_signal(|| None::<u64>);
-    let selected_vn = match *selected_vn_id.read() {
+
+    let selected_vn_id_value = *selected_vn_id.read();
+
+    let selected_vn = match selected_vn_id_value {
         Some(id) => vns.read().iter().find(|vn| vn.id == id).cloned(),
         None => None,
     };
@@ -150,11 +148,8 @@ fn App() -> Element {
 
     let search_text = search_query.read().to_lowercase();
 
-    let mut available_tags: Vec<String> = vns
-        .read()
-        .iter()
-        .flat_map(|vn| vn.tags.clone())
-        .collect();
+    let mut available_tags: Vec<String> =
+        vns.read().iter().flat_map(|vn| vn.tags.clone()).collect();
 
     available_tags.sort_by_key(|tag| tag.to_lowercase());
     available_tags.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
@@ -352,114 +347,144 @@ fn App() -> Element {
                     }
                 }
 
-                section { class: "main-area",
+                section { class: if selected_view == AppView::Library { "main-area" } else { "main-area settings-view" },
 
-                    //the bar at the top
-                    header { class: "topbar",
+                    if selected_view == AppView::Library {
+                        //the bar at the top
+                        header { class: "topbar",
 
-                        //search bar
-                        input {
-                            class: "search-input",
-                            placeholder: "Search visual novels...",
-                            value: "{search_query}",
+                            //search bar
+                            input {
+                                class: "search-input",
+                                placeholder: "Search visual novels...",
+                                value: "{search_query}",
 
-                            oninput: move |event| {
-                                search_query.set(event.value());
-                            },
-                        }
-
-                        //sort vns
-                        select {
-                            class: "sort-select",
-
-                            value: match selected_sort_mode {
-                                LibrarySortMode::Added => "added",
-                                LibrarySortMode::TitleAsc => "title-asc",
-                                LibrarySortMode::TitleDesc => "title-desc",
-                                LibrarySortMode::LastPlayed => "last-played",
-                                LibrarySortMode::MostPlaytime => "most-playtime",
-                            },
-
-                            onchange: move |event| {
-                                let sort_mode = match event.value().as_str() {
-                                    "title-asc" => LibrarySortMode::TitleAsc,
-                                    "title-desc" => LibrarySortMode::TitleDesc,
-                                    "last-played" => LibrarySortMode::LastPlayed,
-                                    "most-playtime" => LibrarySortMode::MostPlaytime,
-                                    _ => LibrarySortMode::Added,
-                                };
-
-                                library_sort_mode.set(sort_mode.clone());
-                                settings.write().library_sort_mode = sort_mode;
-                                save_settings_or_log(&settings);
-                            },
-
-                            option { value: "added", "Added" }
-                            option { value: "title-asc", "A-Z" }
-                            option { value: "title-desc", "Z-A" }
-                            option { value: "last-played", "Last Played" }
-                            option { value: "most-playtime", "Most Playtime" }
-
-                        }
-
-                        //filter vns
-                        select {
-                            class: "filter-select",
-
-                            value: match selected_filter_mode {
-                                LibraryFilterMode::All => "all",
-                                LibraryFilterMode::Favourites => "favourites",
-                            },
-
-                            onchange: move |event| {
-                                let filter_mode = match event.value().as_str() {
-                                    "favourites" => LibraryFilterMode::Favourites,
-                                    _ => LibraryFilterMode::All,
-                                };
-
-                                library_filter_mode.set(filter_mode.clone());
-                                settings.write().library_filter_mode = filter_mode;
-                                save_settings_or_log(&settings);
-                            },
-
-                            option { value: "all", "All" }
-                            option { value: "favourites", "Favourites" }
-                        }
-
-                        //filter by tag
-                        select {
-                            class: "tag-filter-select",
-
-                            value: selected_tag.clone().unwrap_or_default(),
-
-                            onchange: move |event| {
-                                let value = event.value();
-
-                                if value.is_empty() {
-                                    selected_tag_filter.set(None);
-                                } else {
-                                    selected_tag_filter.set(Some(value));
-                                }
-                            },
-
-                            option { value: "", "All Tags" }
-
-                            for tag in available_tags {
-                                option { value: "{tag}", "{tag}" }
+                                oninput: move |event| {
+                                    search_query.set(event.value());
+                                },
                             }
+
+                            label { class: "topbar-select-field sort-field",
+                                span { class: "topbar-select-label", "Sort by" }
+
+                                div { class: "select-shell",
+
+                                    //sort vns
+                                    select {
+                                        class: "sort-select",
+
+                                        value: match selected_sort_mode {
+                                            LibrarySortMode::Added => "added",
+                                            LibrarySortMode::TitleAsc => "title-asc",
+                                            LibrarySortMode::TitleDesc => "title-desc",
+                                            LibrarySortMode::LastPlayed => "last-played",
+                                            LibrarySortMode::MostPlaytime => "most-playtime",
+                                        },
+
+                                        onchange: move |event| {
+                                            let sort_mode = match event.value().as_str() {
+                                                "title-asc" => LibrarySortMode::TitleAsc,
+                                                "title-desc" => LibrarySortMode::TitleDesc,
+                                                "last-played" => LibrarySortMode::LastPlayed,
+                                                "most-playtime" => LibrarySortMode::MostPlaytime,
+                                                _ => LibrarySortMode::Added,
+                                            };
+
+                                            library_sort_mode.set(sort_mode.clone());
+                                            settings.write().library_sort_mode = sort_mode;
+                                            save_settings_or_log(&settings);
+                                        },
+
+                                        option { value: "added", "Added" }
+                                        option { value: "title-asc", "A-Z" }
+                                        option { value: "title-desc", "Z-A" }
+                                        option { value: "last-played", "Last Played" }
+                                        option { value: "most-playtime", "Most Playtime" }
+
+                                    }
+
+                                    span { class: "select-chevron", "⌄" }
+                                }
+                            }
+
+                            div { class: "topbar-select-field view-field",
+                                span { class: "topbar-select-label", "View" }
+
+                                div { class: "topbar-segmented-control",
+                                    button {
+                                        class: if selected_filter_mode == LibraryFilterMode::All { "topbar-segment active" } else { "topbar-segment" },
+
+                                        onclick: move |_| {
+                                            let filter_mode = LibraryFilterMode::All;
+
+                                            library_filter_mode.set(filter_mode.clone());
+                                            settings.write().library_filter_mode = filter_mode;
+                                            save_settings_or_log(&settings);
+                                        },
+
+                                        "All"
+                                    }
+
+                                    button {
+                                        class: if selected_filter_mode == LibraryFilterMode::Favourites { "topbar-segment active" } else { "topbar-segment" },
+
+                                        onclick: move |_| {
+                                            let filter_mode = LibraryFilterMode::Favourites;
+
+                                            library_filter_mode.set(filter_mode.clone());
+                                            settings.write().library_filter_mode = filter_mode;
+                                            save_settings_or_log(&settings);
+                                        },
+
+                                        "Favourites"
+                                    }
+                                }
+                            }
+
+                            label { class: "topbar-select-field",
+                                span { class: "topbar-select-label", "Tag" }
+
+                                div { class: "select-shell",
+
+                                    //filter by tag
+                                    select {
+                                        class: "tag-filter-select",
+
+                                        value: selected_tag.clone().unwrap_or_default(),
+
+                                        onchange: move |event| {
+                                            let value = event.value();
+
+                                            if value.is_empty() {
+                                                selected_tag_filter.set(None);
+                                            } else {
+                                                selected_tag_filter.set(Some(value));
+                                            }
+                                        },
+
+                                        option { value: "", "All Tags" }
+
+                                        for tag in available_tags {
+                                            option { value: "{tag}", "{tag}" }
+                                        }
+                                    }
+
+                                    span { class: "select-chevron", "⌄" }
+                                }
+                            }
+
+                            //add vn button
+                            button {
+                                class: "icon-button",
+                                onclick: move |_| {
+                                    let next_value = !*show_add_form.read();
+                                    show_add_form.set(next_value);
+                                },
+
+                                "+"
+                            }
+
                         }
-
-                        //add vn button
-                        button {
-                            class: "icon-button",
-                            onclick: move |_| {
-                                let next_value = !*show_add_form.read();
-                                show_add_form.set(next_value);
-                            },
-
-                            "+"
-                        }
-
                     }
 
                     if selected_view == AppView::Library {
@@ -552,13 +577,14 @@ fn App() -> Element {
 
                                 LibraryView {
                                     vns: filtered_vns,
+                                    selected_vn_id: selected_vn_id_value,
 
                                     //when selecting a vn
                                     on_select: move |id| {
                                         selected_vn_id.set(Some(id));
 
                                     },
-                                    
+
                                     //when toggling vn as favourite
                                     on_toggle_favourite: move |id| {
                                         update_vn_and_save(
@@ -673,15 +699,19 @@ fn App() -> Element {
 
                                                     match vn.executable_path {
                                                         Some(path) => {
-                                                            if vn.launch_mode == LaunchMode::Proton && !umu_launcher_is_available() {
-                                                                notification.set(Some(AppNotification {
-                                                                    level: NotificationLevel::Error,
-                                                                    message: "Could not launch VN: UMU Launcher was not found. Install umu-launcher to run games with Proton.".to_string(),
-                                                                }));
-
+                                                            if vn.launch_mode == LaunchMode::Proton
+                                                                && !umu_launcher_is_available()
+                                                            {
+                                                                notification
+                                                                    .set(
+                                                                        Some(AppNotification {
+                                                                            level: NotificationLevel::Error,
+                                                                            message: "Could not launch VN: UMU Launcher was not found. Install umu-launcher to run games with Proton."
+                                                                                .to_string(),
+                                                                        }),
+                                                                    );
                                                                 return;
                                                             }
-
                                                             let launch_log_path = match new_launch_log_path(
                                                                 vn.id,
                                                                 vn.title.clone(),
@@ -703,14 +733,17 @@ fn App() -> Element {
                                                             ) {
                                                                 Ok(environment) => environment,
                                                                 Err(error) => {
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Error,
-                                                                        message: format!("Could not launch VN: {error}"),
-                                                                    }));
-
+                                                                    notification
+                                                                        .set(
+                                                                            Some(AppNotification {
+                                                                                level: NotificationLevel::Error,
+                                                                                message: format!("Could not launch VN: {error}"),
+                                                                            }),
+                                                                        );
                                                                     return;
                                                                 }
                                                             };
+
                                                             match launch_executable(
                                                                 path,
                                                                 vn.launch_mode,
@@ -733,6 +766,7 @@ fn App() -> Element {
                                                                             Some(AppNotification {
                                                                                 level: NotificationLevel::Info,
                                                                                 message: format!("Launched {}.", presence_vn.title),
+
                                                                             }),
                                                                         );
                                                                     let discord_presence = if settings
@@ -838,52 +872,58 @@ fn App() -> Element {
                                                 .cloned();
 
                                             let Some(vn) = vn else {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "Could not run exe: VN was not found.".to_string(),
-                                                }));
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not run exe: VN was not found.".to_string(),
+                                                        }),
+                                                    );
 
                                                 return;
                                             };
-
                                             if vn.launch_mode == LaunchMode::Proton && !umu_launcher_is_available() {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "Could not run tool: UMU Launcher was not found. Install umu-launcher to run tools with Proton.".to_string(),
-                                                }));
-
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not run tool: UMU Launcher was not found. Install umu-launcher to run tools with Proton."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
-
                                             let launch_environment = match parse_launch_environment(
                                                 vn.launch_environment.clone(),
                                             ) {
                                                 Ok(environment) => environment,
                                                 Err(error) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Error,
-                                                        message: format!("Could not run tool: {error}"),
-                                                    }));
-
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Error,
+                                                                message: format!("Could not run tool: {error}"),
+                                                            }),
+                                                        );
                                                     return;
                                                 }
                                             };
-
                                             let launch_log_path = match new_launch_log_path(
                                                 vn.id,
                                                 format!("{} tool", vn.title),
                                             ) {
                                                 Ok(path) => Some(path),
                                                 Err(error) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Warning,
-                                                        message: format!("Could not create tool log: {error}"),
-                                                    }));
-
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Warning,
+                                                                message: format!("Could not create tool log: {error}"),
+                                                            }),
+                                                        );
                                                     None
                                                 }
                                             };
-
                                             match launch_executable(
                                                 tool_path,
                                                 vn.launch_mode,
@@ -897,31 +937,36 @@ fn App() -> Element {
                                                 launch_log_path.clone(),
                                             ) {
                                                 Ok(mut child) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Info,
-                                                        message: format!("Started tool for {}.", vn.title),
-                                                    }));
-
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Info,
+                                                                message: format!("Started tool for {}.", vn.title),
+                                                            }),
+                                                        );
                                                     thread::spawn(move || {
                                                         let wait_result = child.wait();
-
                                                         if let Some(log_path) = launch_log_path {
                                                             if let Err(error) = update_latest_launch_log(&log_path) {
                                                                 println!("Could not update ltatest launch log: {error}");
                                                             }
                                                         }
-
                                                         if let Err(error) = wait_result {
                                                             println!("Tool process wait failed: {error}");
                                                         }
                                                     });
                                                 }
                                                 Err(error) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Error,
-                                                        message: format!("Could not run tool: {error}"),
-                                                    }));
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Error,
+                                                                message: format!("Could not run tool: {error}"),
+                                                            }),
+                                                        );
+
                                                 }
+
                                             }
                                         },
 
@@ -986,21 +1031,26 @@ fn App() -> Element {
                                             let trimmed_prefix = prefix.trim().to_string();
 
                                             if is_flatpak_document_portal_path(&trimmed_prefix) {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "The Wine prefix has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path.".to_string(),
-                                                }));
-
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "The Wine prefix has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
-
-                                            let wine_prefix = if trimmed_prefix.is_empty() { None } else { Some(trimmed_prefix) };
+                                            let wine_prefix = if trimmed_prefix.is_empty() {
+                                                None
+                                            } else {
+                                                Some(trimmed_prefix)
+                                            };
                                             update_vn_and_save(
                                                 &mut vns,
                                                 id,
                                                 move |vn| {
                                                     vn.wine_prefix = wine_prefix;
-
                                                 },
                                                 "Could not save Wine prefix".to_string(),
                                             );
@@ -1083,11 +1133,14 @@ fn App() -> Element {
                                             let trimmed_cover_path = cover_path.trim().to_string();
 
                                             if is_flatpak_document_portal_path(&trimmed_cover_path) {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "The cover image has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path.".to_string(),
-                                                }));
-
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "The cover image has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
                                             update_vn_and_save(
@@ -1096,7 +1149,6 @@ fn App() -> Element {
                                                 move |vn| {
                                                     vn.cover_path = Some(trimmed_cover_path);
                                                 },
-
                                                 "Could not save cover image".to_string(),
                                             );
                                         },
