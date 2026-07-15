@@ -671,15 +671,19 @@ fn App() -> Element {
 
                                                     match vn.executable_path {
                                                         Some(path) => {
-                                                            if vn.launch_mode == LaunchMode::Proton && !umu_launcher_is_available() {
-                                                                notification.set(Some(AppNotification {
-                                                                    level: NotificationLevel::Error,
-                                                                    message: "Could not launch VN: UMU Launcher was not found. Install umu-launcher to run games with Proton.".to_string(),
-                                                                }));
-
+                                                            if vn.launch_mode == LaunchMode::Proton
+                                                                && !umu_launcher_is_available()
+                                                            {
+                                                                notification
+                                                                    .set(
+                                                                        Some(AppNotification {
+                                                                            level: NotificationLevel::Error,
+                                                                            message: "Could not launch VN: UMU Launcher was not found. Install umu-launcher to run games with Proton."
+                                                                                .to_string(),
+                                                                        }),
+                                                                    );
                                                                 return;
                                                             }
-
                                                             let launch_log_path = match new_launch_log_path(
                                                                 vn.id,
                                                                 vn.title.clone(),
@@ -701,14 +705,17 @@ fn App() -> Element {
                                                             ) {
                                                                 Ok(environment) => environment,
                                                                 Err(error) => {
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Error,
-                                                                        message: format!("Could not launch VN: {error}"),
-                                                                    }));
-
+                                                                    notification
+                                                                        .set(
+                                                                            Some(AppNotification {
+                                                                                level: NotificationLevel::Error,
+                                                                                message: format!("Could not launch VN: {error}"),
+                                                                            }),
+                                                                        );
                                                                     return;
                                                                 }
                                                             };
+
                                                             match launch_executable(
                                                                 path,
                                                                 vn.launch_mode,
@@ -731,6 +738,7 @@ fn App() -> Element {
                                                                             Some(AppNotification {
                                                                                 level: NotificationLevel::Info,
                                                                                 message: format!("Launched {}.", presence_vn.title),
+
                                                                             }),
                                                                         );
                                                                     let discord_presence = if settings
@@ -836,52 +844,58 @@ fn App() -> Element {
                                                 .cloned();
 
                                             let Some(vn) = vn else {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "Could not run exe: VN was not found.".to_string(),
-                                                }));
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not run exe: VN was not found.".to_string(),
+                                                        }),
+                                                    );
 
                                                 return;
                                             };
-
                                             if vn.launch_mode == LaunchMode::Proton && !umu_launcher_is_available() {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "Could not run tool: UMU Launcher was not found. Install umu-launcher to run tools with Proton.".to_string(),
-                                                }));
-
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not run tool: UMU Launcher was not found. Install umu-launcher to run tools with Proton."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
-
                                             let launch_environment = match parse_launch_environment(
                                                 vn.launch_environment.clone(),
                                             ) {
                                                 Ok(environment) => environment,
                                                 Err(error) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Error,
-                                                        message: format!("Could not run tool: {error}"),
-                                                    }));
-
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Error,
+                                                                message: format!("Could not run tool: {error}"),
+                                                            }),
+                                                        );
                                                     return;
                                                 }
                                             };
-
                                             let launch_log_path = match new_launch_log_path(
                                                 vn.id,
                                                 format!("{} tool", vn.title),
                                             ) {
                                                 Ok(path) => Some(path),
                                                 Err(error) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Warning,
-                                                        message: format!("Could not create tool log: {error}"),
-                                                    }));
-
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Warning,
+                                                                message: format!("Could not create tool log: {error}"),
+                                                            }),
+                                                        );
                                                     None
                                                 }
                                             };
-
                                             match launch_executable(
                                                 tool_path,
                                                 vn.launch_mode,
@@ -895,31 +909,36 @@ fn App() -> Element {
                                                 launch_log_path.clone(),
                                             ) {
                                                 Ok(mut child) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Info,
-                                                        message: format!("Started tool for {}.", vn.title),
-                                                    }));
-
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Info,
+                                                                message: format!("Started tool for {}.", vn.title),
+                                                            }),
+                                                        );
                                                     thread::spawn(move || {
                                                         let wait_result = child.wait();
-
                                                         if let Some(log_path) = launch_log_path {
                                                             if let Err(error) = update_latest_launch_log(&log_path) {
                                                                 println!("Could not update ltatest launch log: {error}");
                                                             }
                                                         }
-
                                                         if let Err(error) = wait_result {
                                                             println!("Tool process wait failed: {error}");
                                                         }
                                                     });
                                                 }
                                                 Err(error) => {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Error,
-                                                        message: format!("Could not run tool: {error}"),
-                                                    }));
+                                                    notification
+                                                        .set(
+                                                            Some(AppNotification {
+                                                                level: NotificationLevel::Error,
+                                                                message: format!("Could not run tool: {error}"),
+                                                            }),
+                                                        );
+
                                                 }
+
                                             }
                                         },
 
@@ -984,21 +1003,26 @@ fn App() -> Element {
                                             let trimmed_prefix = prefix.trim().to_string();
 
                                             if is_flatpak_document_portal_path(&trimmed_prefix) {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "The Wine prefix has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path.".to_string(),
-                                                }));
-
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "The Wine prefix has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
-
-                                            let wine_prefix = if trimmed_prefix.is_empty() { None } else { Some(trimmed_prefix) };
+                                            let wine_prefix = if trimmed_prefix.is_empty() {
+                                                None
+                                            } else {
+                                                Some(trimmed_prefix)
+                                            };
                                             update_vn_and_save(
                                                 &mut vns,
                                                 id,
                                                 move |vn| {
                                                     vn.wine_prefix = wine_prefix;
-
                                                 },
                                                 "Could not save Wine prefix".to_string(),
                                             );
@@ -1081,11 +1105,14 @@ fn App() -> Element {
                                             let trimmed_cover_path = cover_path.trim().to_string();
 
                                             if is_flatpak_document_portal_path(&trimmed_cover_path) {
-                                                notification.set(Some(AppNotification {
-                                                    level: NotificationLevel::Error,
-                                                    message: "The cover image has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path.".to_string(),
-                                                }));
-
+                                                notification
+                                                    .set(
+                                                        Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "The cover image has been selected through Flatpak's temporary document portal. Grant Kakera access to the folder, then reselect the real path."
+                                                                .to_string(),
+                                                        }),
+                                                    );
                                                 return;
                                             }
                                             update_vn_and_save(
@@ -1094,7 +1121,6 @@ fn App() -> Element {
                                                 move |vn| {
                                                     vn.cover_path = Some(trimmed_cover_path);
                                                 },
-
                                                 "Could not save cover image".to_string(),
                                             );
                                         },
