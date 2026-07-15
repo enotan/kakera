@@ -93,41 +93,45 @@ pub fn DetailView(
     let total_playtime_text = format_playtime(total_playtime_seconds);
     rsx! {
         section { class: "detail-panel",
-            h2 { "{vn.title}" }
-            div { class: "detail-cover-frame",
-                if let Some(cover_src) = cover_source(vn.clone()) {
-                    img {
-                        class: "detail-cover",
-                        src: "{cover_src}",
-                        alt: "Cover art for {vn.title}",
-                    }
-                } else {
-                    div { class: "detail-cover-placeholder", "No cover" }
-                }
-                button {
-                    class: "cover-action-button cover-edit-button",
-                    title: "Change cover image",
-                    onclick: move |_| {
-                        let picked_file = FileDialog::new()
-                            .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
-                            .pick_file();
-                        if let Some(path) = picked_file {
-                            on_cover_path_change.call((vn.id, path.to_string_lossy().to_string()));
+
+            div { class: "detail-header",
+                h2 { "{vn.title}" }
+                div { class: "detail-cover-frame",
+                    if let Some(cover_src) = cover_source(vn.clone()) {
+                        img {
+                            class: "detail-cover",
+                            src: "{cover_src}",
+                            alt: "Cover art for {vn.title}",
                         }
-                    },
-                    "✎"
-                }
-                if vn.cover_url.is_some() {
+                    } else {
+                        div { class: "detail-cover-placeholder", "No cover" }
+                    }
                     button {
-                        class: "cover-action-button cover-refresh-button",
-                        title: "Refresh cover from VNDB",
+                        class: "cover-action-button cover-edit-button",
+                        title: "Change cover image",
                         onclick: move |_| {
-                            on_cover_refresh.call(vn.id);
+                            let picked_file = FileDialog::new()
+                                .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                                .pick_file();
+                            if let Some(path) = picked_file {
+                                on_cover_path_change.call((vn.id, path.to_string_lossy().to_string()));
+                            }
                         },
-                        "↻"
+                        "✎"
+                    }
+                    if vn.cover_url.is_some() {
+                        button {
+                            class: "cover-action-button cover-refresh-button",
+                            title: "Refresh cover from VNDB",
+                            onclick: move |_| {
+                                on_cover_refresh.call(vn.id);
+                            },
+                            "↻"
+                        }
                     }
                 }
             }
+
             div { class: "detail-tabs",
                 button {
                     class: if selected_tab == DetailTab::Info { "detail-tab active" } else { "detail-tab" },
@@ -255,6 +259,9 @@ pub fn DetailView(
                             }
                         }
                     }
+
+                    h3 { "Notes" }
+
                     div { class: if *notes_is_editing.read() { "notes-box editing" } else { "notes-box" },
                         button {
                             class: "notes-edit-button",
@@ -417,7 +424,7 @@ pub fn DetailView(
                                             option {
                                                 value: "",
                                                 selected: proton_path_value
-                                                                                                                                                        .is_empty(),
+                                                                                                                                                                                                                                                                                                        .is_empty(),
                                                 "UMU managed default"
                                             }
                                             for runner in proton_runners.clone() {
