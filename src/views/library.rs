@@ -59,15 +59,7 @@ pub fn LibraryView(
                                         }
                                     }
                                     div { class: "vn-cover-frame",
-                                        if let Some(cover_src) = cover_source(vn.clone()) {
-                                            img {
-                                                class: "vn-cover",
-                                                src: "{cover_src}",
-                                                alt: "Cover art for {vn.title}",
-                                            }
-                                        } else {
-                                            div { class: "vn-cover-placeholder", "No cover" }
-                                        }
+                                        VnCover { vn: vn.clone() }
                                     }
                                     div { class: "vn-card-info",
                                         h3 { "{vn.title}" }
@@ -88,6 +80,34 @@ pub fn LibraryView(
         }
     }
 }
+
+///renders a vn cover and replaces failed image requests with a placeholder
+
+#[component]
+fn VnCover(vn: VisualNovel) -> Element {
+    let mut image_failed = use_signal(|| false);
+    let has_failed = *image_failed.read();
+
+    let title = vn.title.clone();
+    let cover_src = cover_source(vn);
+
+    rsx! {
+        if has_failed {
+            div { class: "vn-cover-placeholder", "No cover" }
+        } else if let Some(src) = cover_src {
+            img {
+                class: "vn-cover",
+                src: "{src}",
+                alt: "Cover art for {title}",
+                onerror: move |_| {
+                    image_failed.set(true);
+                },
+            }
+        } else {
+            div { class: "vn-cover-placeholder", "No cover" }
+        }
+    }
+}
 ///returns an image source that webview can display for windows users
 pub fn cover_source(vn: VisualNovel) -> Option<String> {
     match vn.cover_path {
@@ -97,16 +117,7 @@ pub fn cover_source(vn: VisualNovel) -> Option<String> {
 }
 ///converts a saved local cover path into a webview image source
 fn local_cover_source(path: String) -> Option<String> {
-    match local_path_to_data_url(&path) {
-        Some(data_url) => Some(data_url),
-        None => {
-            if cfg!(target_os = "windows") {
-                None
-            } else {
-                Some(path)
-            }
-        }
-    }
+    local_path_to_data_url(&path)
 }
 ///reads a local image file and turns it into data:image/... url
 fn local_path_to_data_url(path: &str) -> Option<String> {
