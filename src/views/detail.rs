@@ -239,10 +239,7 @@ pub fn DetailView(
                                     oninput: move |event| {
                                         description_draft.set(event.value());
                                     },
-                                    onblur: move
-                                                                                                                    | _ | { on_description_change.call((vn.id, description_draft.read().clone()));
-                                        on_description_change.call((vn.id, description_draft.read().clone()));
-                                        on_description_change.call((vn.id, description_draft.read().clone()));
+                                    onblur: move |_| {
                                         on_description_change.call((vn.id, description_draft.read().clone()));
                                         description_is_editing.set(false);
                                     },
