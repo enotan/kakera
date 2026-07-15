@@ -15,16 +15,8 @@ use discord_presence::DiscordPresence;
 use launcher::{launch_executable, parse_launch_environment};
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
-    AppNotification,
-    AppSettings, 
-    LaunchMode, 
-    NotificationLevel, 
-    PlaySession, 
-    StoryRoute,
-    VisualNovel, 
-    default_umu_game_id,
-    LibraryFilterMode,
-    LibrarySortMode,
+    AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
+    NotificationLevel, PlaySession, StoryRoute, VisualNovel, default_umu_game_id,
 };
 use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
@@ -70,7 +62,6 @@ enum AppView {
     Settings,
 }
 
-
 ///for resizing the window on linux
 #[component]
 fn ResizeHandle(class: String, direction: ResizeDirection) -> Element {
@@ -109,7 +100,10 @@ fn App() -> Element {
 
     let mut vns = use_signal(move || saved_library);
     let mut selected_vn_id = use_signal(|| None::<u64>);
-    let selected_vn = match *selected_vn_id.read() {
+
+    let selected_vn_id_value = *selected_vn_id.read();
+
+    let selected_vn = match selected_vn_id_value {
         Some(id) => vns.read().iter().find(|vn| vn.id == id).cloned(),
         None => None,
     };
@@ -150,11 +144,8 @@ fn App() -> Element {
 
     let search_text = search_query.read().to_lowercase();
 
-    let mut available_tags: Vec<String> = vns
-        .read()
-        .iter()
-        .flat_map(|vn| vn.tags.clone())
-        .collect();
+    let mut available_tags: Vec<String> =
+        vns.read().iter().flat_map(|vn| vn.tags.clone()).collect();
 
     available_tags.sort_by_key(|tag| tag.to_lowercase());
     available_tags.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
@@ -352,8 +343,13 @@ fn App() -> Element {
                     }
                 }
 
-                section { class: "main-area",
+                section { class: if selected_view == AppView::Library {
+                    "main-area"
+                } else {
+                    "main-area settings-view"
+                },
 
+                if selected_view == AppView::Library {
                     //the bar at the top
                     header { class: "topbar",
 
@@ -461,6 +457,7 @@ fn App() -> Element {
                         }
 
                     }
+                }
 
                     if selected_view == AppView::Library {
                         div { class: "app-layout",
@@ -552,13 +549,14 @@ fn App() -> Element {
 
                                 LibraryView {
                                     vns: filtered_vns,
+                                    selected_vn_id: selected_vn_id_value,
 
                                     //when selecting a vn
                                     on_select: move |id| {
                                         selected_vn_id.set(Some(id));
 
                                     },
-                                    
+
                                     //when toggling vn as favourite
                                     on_toggle_favourite: move |id| {
                                         update_vn_and_save(

@@ -6,7 +6,8 @@ use std::fs;
 //displays the vn library as a simple list of cards
 #[component]
 pub fn LibraryView(
-    vns: Vec<VisualNovel>, 
+    vns: Vec<VisualNovel>,
+    selected_vn_id: Option<u64>,
     on_select: EventHandler<u64>,
     on_toggle_favourite: EventHandler<u64>,
 ) -> Element {
@@ -27,6 +28,13 @@ pub fn LibraryView(
                     for vn in vns {
                         {
                             let vn_id = vn.id;
+
+                            let card_class = if selected_vn_id == Some(vn_id) {
+                                "vn-card selected"
+                            } else {
+                                "vn-card"
+                            };
+
                             let favourite_button_class = if vn.is_favourite {
                                 "favourite-button active"
                             } else {
@@ -42,7 +50,7 @@ pub fn LibraryView(
                             rsx! {
                                 article {
 
-                                    class: "vn-card",
+                                    class: "{card_class}",
 
                                     onclick: move |_| {
                                         on_select.call(vn.id);
