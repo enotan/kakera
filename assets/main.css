@@ -332,10 +332,61 @@ img {
     minmax(260px, 420px) 130px 140px 150px minmax(20px, 1fr)
     44px;
   gap: 14px;
-  align-items: center;
+  align-items: end;
   border-bottom: 0;
   background: transparent;
   padding: 24px 28px 16px;
+}
+
+.topbar-select-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: var(--muted-2);
+}
+
+.topbar-select-label {
+  padding-left: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.select-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.select-shell select {
+  width: 100%;
+  height: 48px;
+  padding: 0 36px 2px 12px;
+  text-align: left;
+  text-align-last: left;
+  cursor: pointer;
+}
+
+.select-chevron {
+  position: absolute;
+  top: 45%;
+  right: 13px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transform-origin: center;
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.select-shell:focus-within .select-chevron {
+  color: var(--accent);
+}
+
+.select-shell select:open + .select-chevron {
+  transform: translateY(-10%) rotate(180deg);
 }
 
 .win-titlebar {

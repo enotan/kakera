@@ -343,121 +343,144 @@ fn App() -> Element {
                     }
                 }
 
-                section { class: if selected_view == AppView::Library {
-                    "main-area"
-                } else {
-                    "main-area settings-view"
-                },
+                section { class: if selected_view == AppView::Library { "main-area" } else { "main-area settings-view" },
 
-                if selected_view == AppView::Library {
-                    //the bar at the top
-                    header { class: "topbar",
+                    if selected_view == AppView::Library {
+                        //the bar at the top
+                        header { class: "topbar",
 
-                        //search bar
-                        input {
-                            class: "search-input",
-                            placeholder: "Search visual novels...",
-                            value: "{search_query}",
+                            //search bar
+                            input {
+                                class: "search-input",
+                                placeholder: "Search visual novels...",
+                                value: "{search_query}",
 
-                            oninput: move |event| {
-                                search_query.set(event.value());
-                            },
-                        }
-
-                        //sort vns
-                        select {
-                            class: "sort-select",
-
-                            value: match selected_sort_mode {
-                                LibrarySortMode::Added => "added",
-                                LibrarySortMode::TitleAsc => "title-asc",
-                                LibrarySortMode::TitleDesc => "title-desc",
-                                LibrarySortMode::LastPlayed => "last-played",
-                                LibrarySortMode::MostPlaytime => "most-playtime",
-                            },
-
-                            onchange: move |event| {
-                                let sort_mode = match event.value().as_str() {
-                                    "title-asc" => LibrarySortMode::TitleAsc,
-                                    "title-desc" => LibrarySortMode::TitleDesc,
-                                    "last-played" => LibrarySortMode::LastPlayed,
-                                    "most-playtime" => LibrarySortMode::MostPlaytime,
-                                    _ => LibrarySortMode::Added,
-                                };
-
-                                library_sort_mode.set(sort_mode.clone());
-                                settings.write().library_sort_mode = sort_mode;
-                                save_settings_or_log(&settings);
-                            },
-
-                            option { value: "added", "Added" }
-                            option { value: "title-asc", "A-Z" }
-                            option { value: "title-desc", "Z-A" }
-                            option { value: "last-played", "Last Played" }
-                            option { value: "most-playtime", "Most Playtime" }
-
-                        }
-
-                        //filter vns
-                        select {
-                            class: "filter-select",
-
-                            value: match selected_filter_mode {
-                                LibraryFilterMode::All => "all",
-                                LibraryFilterMode::Favourites => "favourites",
-                            },
-
-                            onchange: move |event| {
-                                let filter_mode = match event.value().as_str() {
-                                    "favourites" => LibraryFilterMode::Favourites,
-                                    _ => LibraryFilterMode::All,
-                                };
-
-                                library_filter_mode.set(filter_mode.clone());
-                                settings.write().library_filter_mode = filter_mode;
-                                save_settings_or_log(&settings);
-                            },
-
-                            option { value: "all", "All" }
-                            option { value: "favourites", "Favourites" }
-                        }
-
-                        //filter by tag
-                        select {
-                            class: "tag-filter-select",
-
-                            value: selected_tag.clone().unwrap_or_default(),
-
-                            onchange: move |event| {
-                                let value = event.value();
-
-                                if value.is_empty() {
-                                    selected_tag_filter.set(None);
-                                } else {
-                                    selected_tag_filter.set(Some(value));
-                                }
-                            },
-
-                            option { value: "", "All Tags" }
-
-                            for tag in available_tags {
-                                option { value: "{tag}", "{tag}" }
+                                oninput: move |event| {
+                                    search_query.set(event.value());
+                                },
                             }
+
+                            label { class: "topbar-select-field",
+                                span { class: "topbar-select-label", "Sort by" }
+
+                                div { class: "select-shell",
+
+                                    //sort vns
+                                    select {
+                                        class: "sort-select",
+
+                                        value: match selected_sort_mode {
+                                            LibrarySortMode::Added => "added",
+                                            LibrarySortMode::TitleAsc => "title-asc",
+                                            LibrarySortMode::TitleDesc => "title-desc",
+                                            LibrarySortMode::LastPlayed => "last-played",
+                                            LibrarySortMode::MostPlaytime => "most-playtime",
+                                        },
+
+                                        onchange: move |event| {
+                                            let sort_mode = match event.value().as_str() {
+                                                "title-asc" => LibrarySortMode::TitleAsc,
+                                                "title-desc" => LibrarySortMode::TitleDesc,
+                                                "last-played" => LibrarySortMode::LastPlayed,
+                                                "most-playtime" => LibrarySortMode::MostPlaytime,
+                                                _ => LibrarySortMode::Added,
+                                            };
+
+                                            library_sort_mode.set(sort_mode.clone());
+                                            settings.write().library_sort_mode = sort_mode;
+                                            save_settings_or_log(&settings);
+                                        },
+
+                                        option { value: "added", "Added" }
+                                        option { value: "title-asc", "A-Z" }
+                                        option { value: "title-desc", "Z-A" }
+                                        option { value: "last-played", "Last Played" }
+                                        option { value: "most-playtime", "Most Playtime" }
+
+                                    }
+
+                                    span { class: "select-chevron", "⌄" }
+                                }
+                            }
+
+                            label { class: "topbar-select-field",
+                                span { class: "topbar-select-label", "View" }
+
+                                div { class: "select-shell",
+
+                                    //filter vns
+                                    select {
+                                        class: "filter-select",
+
+                                        value: match selected_filter_mode {
+                                            LibraryFilterMode::All => "all",
+                                            LibraryFilterMode::Favourites => "favourites",
+                                        },
+
+                                        onchange: move |event| {
+                                            let filter_mode = match event.value().as_str() {
+                                                "favourites" => LibraryFilterMode::Favourites,
+                                                _ => LibraryFilterMode::All,
+                                            };
+
+                                            library_filter_mode.set(filter_mode.clone());
+                                            settings.write().library_filter_mode = filter_mode;
+                                            save_settings_or_log(&settings);
+                                        },
+
+                                        option { value: "all", "All" }
+                                        option { value: "favourites", "Favourites" }
+                                    }
+
+                                    span { class: "select-chevron", "⌄" }
+                                }
+                            }
+
+                            label { class: "topbar-select-field",
+                                span { class: "topbar-select-label", "Tag" }
+
+                                div { class: "select-shell",
+
+                                    //filter by tag
+                                    select {
+                                        class: "tag-filter-select",
+
+                                        value: selected_tag.clone().unwrap_or_default(),
+
+                                        onchange: move |event| {
+                                            let value = event.value();
+
+                                            if value.is_empty() {
+                                                selected_tag_filter.set(None);
+                                            } else {
+                                                selected_tag_filter.set(Some(value));
+                                            }
+                                        },
+
+                                        option { value: "", "All Tags" }
+
+                                        for tag in available_tags {
+                                            option { value: "{tag}", "{tag}" }
+                                        }
+                                    }
+
+                                    span { class: "select-chevron", "⌄" }
+                                }
+                            }
+
+                            //add vn button
+                            button {
+                                class: "icon-button",
+                                onclick: move |_| {
+                                    let next_value = !*show_add_form.read();
+                                    show_add_form.set(next_value);
+                                },
+
+                                "+"
+                            }
+
                         }
-
-                        //add vn button
-                        button {
-                            class: "icon-button",
-                            onclick: move |_| {
-                                let next_value = !*show_add_form.read();
-                                show_add_form.set(next_value);
-                            },
-
-                            "+"
-                        }
-
                     }
-                }
 
                     if selected_view == AppView::Library {
                         div { class: "app-layout",
