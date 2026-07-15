@@ -40,7 +40,8 @@
   --accent-card-ring: rgba(82, 163, 255, 0.18);
   --accent-card-shadow: rgba(36, 112, 220, 0.2);
 
-  --logo-color-filter: brightness(1.08) contrast(1.08) sepia(1) saturate(3.4) hue-rotate(180deg);
+  --logo-color-filter: brightness(1.08) contrast(1.08) sepia(1) saturate(3.4)
+    hue-rotate(180deg);
 
   --shadow-detail: rgba(0, 0, 0, 0.32);
 
@@ -212,9 +213,11 @@ img {
   position: absolute;
   inset: -12px;
   background:
-    linear-gradient(90deg,
+    linear-gradient(
+      90deg,
       var(--bg-app-blue) 17%,
-      var(--bg-image-fade-end) 100%),
+      var(--bg-image-fade-end) 100%
+    ),
     var(--app-bg-image);
   background-size: cover;
   background-position: center;
@@ -296,9 +299,11 @@ img {
 }
 
 .nav-item.active {
-  background: linear-gradient(90deg,
-      var(--accent-soft),
-      rgba(82, 163, 255, 0.04));
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft),
+    rgba(82, 163, 255, 0.04)
+  );
   color: var(--text);
   box-shadow: inset 10px 0 24px rgba(40, 120, 230, 0.08);
   border-left-color: var(--accent);
@@ -325,7 +330,8 @@ img {
 .topbar {
   display: grid;
   grid-template-columns:
-    minmax(260px, 420px) 130px 210px 150px minmax(20px, 1fr) 44px;
+    minmax(260px, 420px) 130px 210px 150px minmax(20px, 1fr)
+    44px;
   gap: 14px;
   align-items: end;
   border-bottom: 0;
@@ -358,8 +364,7 @@ img {
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
-  transition:
-    background 0.18s ease;
+  transition: background 0.18s ease;
 }
 
 .topbar-segment:hover {
@@ -424,7 +429,7 @@ img {
   color: var(--accent);
 }
 
-.select-shell select:open+.select-chevron {
+.select-shell select:open + .select-chevron {
   transform: translateY(-10%) rotate(180deg);
 }
 
@@ -651,7 +656,8 @@ img {
 
 .vn-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  align-items: start;
   padding: 0 20px 28px;
   gap: 22px 18px;
 }
@@ -913,9 +919,11 @@ img {
   aspect-ratio: 3 / 4;
   border: 0;
   border-radius: 0;
-  background: linear-gradient(135deg,
-      var(--bg-panel-strong),
-      var(--bg-cover-placeholder-end));
+  background: linear-gradient(
+    135deg,
+    var(--bg-panel-strong),
+    var(--bg-cover-placeholder-end)
+  );
   transition: box-shadow 0.2s ease;
 }
 
@@ -936,9 +944,11 @@ img {
   display: grid;
   place-items: center;
   color: var(--muted-2);
-  background: linear-gradient(135deg,
-      var(--bg-panel-strong),
-      var(--bg-cover-placeholder-end));
+  background: linear-gradient(
+    135deg,
+    var(--bg-panel-strong),
+    var(--bg-cover-placeholder-end)
+  );
 }
 
 .vn-card h3 {
@@ -1011,7 +1021,7 @@ img {
   text-transform: uppercase;
 }
 
-.detail-tab-content>h3 {
+.detail-tab-content > h3 {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
@@ -1021,7 +1031,7 @@ img {
   text-transform: uppercase;
 }
 
-.detail-tab-content>h3:not(:first-child) {
+.detail-tab-content > h3:not(:first-child) {
   padding-top: var(--space-4);
   border-top: 1px solid var(--line);
 }
@@ -1063,7 +1073,7 @@ img {
   line-height: 1.45;
 }
 
-.detail-tab-content>* {
+.detail-tab-content > * {
   min-height: 0;
 }
 
@@ -1121,11 +1131,13 @@ img {
   z-index: 1;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg,
-      rgba(8, 24, 48, 0.08) 0%,
-      rgba(8, 24, 48, 0) 38%,
-      rgba(8, 24, 48, 0.72) 76%,
-      var(--bg-detail-cover-fade) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 24, 48, 0.08) 0%,
+    rgba(8, 24, 48, 0) 38%,
+    rgba(8, 24, 48, 0.72) 76%,
+    var(--bg-detail-cover-fade) 100%
+  );
 }
 
 .detail-cover,
@@ -1241,8 +1253,8 @@ select option {
 
 .detail-panel,
 .empty-detail-panel,
-.detail-panel>*,
-.empty-detail-panel>* {
+.detail-panel > *,
+.empty-detail-panel > * {
   min-width: 0;
   max-width: 100%;
 }
@@ -1554,7 +1566,7 @@ select option {
   gap: var(--space-3);
 }
 
-.playtime-summary>div {
+.playtime-summary > div {
   display: grid;
   gap: 4px;
   border: 1px solid var(--line);
@@ -1646,10 +1658,12 @@ select option {
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
-  background: linear-gradient(180deg,
-      rgba(8, 24, 48, 0) 0%,
-      rgba(8, 24, 48, 0.58) 45%,
-      rgba(8, 24, 48, 0.94) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 24, 48, 0) 0%,
+    rgba(8, 24, 48, 0.58) 45%,
+    rgba(8, 24, 48, 0.94) 100%
+  );
   backdrop-filter: blur(12px);
 }
 
@@ -1757,9 +1771,11 @@ select option {
   display: grid;
   place-items: center;
   color: var(--muted-2);
-  background: linear-gradient(135deg,
-      var(--bg-panel-strong),
-      var(--bg-cover-placeholder-end));
+  background: linear-gradient(
+    135deg,
+    var(--bg-panel-strong),
+    var(--bg-cover-placeholder-end)
+  );
 }
 
 .vndb-result-body {
