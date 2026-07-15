@@ -629,10 +629,13 @@ img {
 }
 
 .library-heading {
+  position: sticky;
+  z-index: 4;
+  top: 0;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 20px 18px;
+  padding: 4px 0 18px;
 }
 
 .library-heading h2 {
@@ -658,7 +661,7 @@ img {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   align-items: start;
-  padding: 0 20px 28px;
+  padding: 0 0 28px;
   gap: 22px 18px;
 }
 
