@@ -81,6 +81,8 @@ pub fn DetailView(
     let description_parts = parse_description(saved_description.clone());
     let mut new_tag_text = use_signal(String::new);
     let new_tag_value = new_tag_text.read().clone();
+    let mut tag_editor_is_open = use_signal(|| false);
+    let tag_editor_open = *tag_editor_is_open.read();
     let mut active_tab = use_signal(|| DetailTab::Info);
     let selected_tab = active_tab.read().clone();
     let mut launch_settings_are_open = use_signal(|| false);
@@ -130,37 +132,38 @@ pub fn DetailView(
                         }
                     }
                 }
-            }
 
-            div { class: "detail-tabs",
-                button {
-                    class: if selected_tab == DetailTab::Info { "detail-tab active" } else { "detail-tab" },
-                    onclick: move |_| {
-                        active_tab.set(DetailTab::Info);
-                    },
-                    "Info"
+                div { class: "detail-tabs",
+                    button {
+                        class: if selected_tab == DetailTab::Info { "detail-tab active" } else { "detail-tab" },
+                        onclick: move |_| {
+                            active_tab.set(DetailTab::Info);
+                        },
+                        "Info"
+                    }
+                    button {
+                        class: if selected_tab == DetailTab::Launch { "detail-tab active" } else { "detail-tab" },
+                        onclick: move |_| {
+                            active_tab.set(DetailTab::Launch);
+                        },
+                        "Launch"
+                    }
+                    button {
+                        class: if selected_tab == DetailTab::Routes { "detail-tab active" } else { "detail-tab" },
+                        onclick: move |_| {
+                            active_tab.set(DetailTab::Routes);
+                        },
+                        "Routes"
+                    }
+                    button {
+                        class: if selected_tab == DetailTab::History { "detail-tab active" } else { "detail-tab" },
+                        onclick: move |_| {
+                            active_tab.set(DetailTab::History);
+                        },
+                        "History"
+                    }
                 }
-                button {
-                    class: if selected_tab == DetailTab::Launch { "detail-tab active" } else { "detail-tab" },
-                    onclick: move |_| {
-                        active_tab.set(DetailTab::Launch);
-                    },
-                    "Launch"
-                }
-                button {
-                    class: if selected_tab == DetailTab::Routes { "detail-tab active" } else { "detail-tab" },
-                    onclick: move |_| {
-                        active_tab.set(DetailTab::Routes);
-                    },
-                    "Routes"
-                }
-                button {
-                    class: if selected_tab == DetailTab::History { "detail-tab active" } else { "detail-tab" },
-                    onclick: move |_| {
-                        active_tab.set(DetailTab::History);
-                    },
-                    "History"
-                }
+
             }
             div { class: "detail-tab-content",
                 if selected_tab == DetailTab::Info {
@@ -191,34 +194,60 @@ pub fn DetailView(
                                     }
                                 }
                             }
-                        }
-                        input {
-                            class: "tag-editor-input",
-                            value: "{new_tag_value}",
-                            placeholder: "Add a tag",
-                            oninput: move |event| {
-                                new_tag_text.set(event.value());
-                            },
-                            onkeydown: move |event| {
-                                let vn_id_for_add = vn.id;
-                                let current_tags_for_add = vn.tags.clone();
-                                let on_tags_change_for_add = on_tags_change;
-                                if event.key().to_string() == "Enter" {
-                                    let typed_tag = new_tag_text.read().trim().to_string();
-                                    if typed_tag.is_empty() {
-                                        return;
-                                    }
-                                    let mut next_tags = current_tags_for_add.clone();
-                                    let already_exists = next_tags
-                                        .iter()
-                                        .any(|tag| tag.eq_ignore_ascii_case(&typed_tag));
-                                    if !already_exists {
-                                        next_tags.push(typed_tag.to_string());
-                                        on_tags_change_for_add.call((vn_id_for_add, next_tags));
-                                    }
-                                    new_tag_text.set(String::new());
+                            if tag_editor_open {
+                                input {
+                                    class: "tag-editor-input inline",
+                                    value: "{new_tag_value}",
+                                    placeholder: "Tag name",
+                                    autofocus: true,
+
+                                    oninput: move |event| {
+                                        new_tag_text.set(event.value());
+                                    },
+
+                                    onkeydown: move |event| {
+                                        let pressed_key = event.key().to_string();
+
+                                        if pressed_key == "Enter" {
+                                            let typed_tag = new_tag_text.read().trim().to_string();
+
+                                            if typed_tag.is_empty() {
+                                                return;
+                                            }
+
+                                            let mut next_tags = vn.tags.clone();
+                                            let already_exists = next_tags
+                                                .iter()
+                                                .any(|tag| tag.eq_ignore_ascii_case(&typed_tag));
+
+                                            if !already_exists {
+                                                next_tags.push(typed_tag);
+                                                on_tags_change.call((vn.id, next_tags));
+                                            }
+
+                                            new_tag_text.set(String::new());
+                                            tag_editor_is_open.set(false);
+                                        } else if pressed_key == "Escape" {
+                                            new_tag_text.set(String::new());
+                                            tag_editor_is_open.set(false);
+                                        }
+                                    },
+
+                                    onblur: move |_| {
+                                        new_tag_text.set(String::new());
+                                        tag_editor_is_open.set(false);
+                                    },
                                 }
-                            },
+                            } else {
+                                button {
+                                    class: "tag-add-button",
+                                    title: "Add tag",
+                                    onclick: move |_| {
+                                        tag_editor_is_open.set(true);
+                                    },
+                                    "+"
+                                }
+                            }
                         }
                     }
                     if let Some(_description) = vn.description.clone() {
@@ -424,7 +453,7 @@ pub fn DetailView(
                                             option {
                                                 value: "",
                                                 selected: proton_path_value
-                                                                                                                                                                                                                                                                                                        .is_empty(),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .is_empty(),
                                                 "UMU managed default"
                                             }
                                             for runner in proton_runners.clone() {
