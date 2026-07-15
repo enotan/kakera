@@ -403,36 +403,37 @@ fn App() -> Element {
                                 }
                             }
 
-                            label { class: "topbar-select-field",
+                            div { class: "topbar-select-field",
                                 span { class: "topbar-select-label", "View" }
 
-                                div { class: "select-shell",
+                                div { class: "topbar-segmented-control",
+                                    button {
+                                        class: if selected_filter_mode == LibraryFilterMode::All { "topbar-segment active" } else { "topbar-segment" },
 
-                                    //filter vns
-                                    select {
-                                        class: "filter-select",
-
-                                        value: match selected_filter_mode {
-                                            LibraryFilterMode::All => "all",
-                                            LibraryFilterMode::Favourites => "favourites",
-                                        },
-
-                                        onchange: move |event| {
-                                            let filter_mode = match event.value().as_str() {
-                                                "favourites" => LibraryFilterMode::Favourites,
-                                                _ => LibraryFilterMode::All,
-                                            };
+                                        onclick: move |_| {
+                                            let filter_mode = LibraryFilterMode::All;
 
                                             library_filter_mode.set(filter_mode.clone());
                                             settings.write().library_filter_mode = filter_mode;
                                             save_settings_or_log(&settings);
                                         },
 
-                                        option { value: "all", "All" }
-                                        option { value: "favourites", "Favourites" }
+                                        "All"
                                     }
 
-                                    span { class: "select-chevron", "⌄" }
+                                    button {
+                                        class: if selected_filter_mode == LibraryFilterMode::Favourites { "topbar-segment active" } else { "topbar-segment" },
+
+                                        onclick: move |_| {
+                                            let filter_mode = LibraryFilterMode::Favourites;
+
+                                            library_filter_mode.set(filter_mode.clone());
+                                            settings.write().library_filter_mode = filter_mode;
+                                            save_settings_or_log(&settings);
+                                        },
+
+                                        "Favourites"
+                                    }
                                 }
                             }
 

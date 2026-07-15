@@ -2,8 +2,6 @@ use crate::models::VisualNovel;
 use base64::Engine;
 use dioxus::prelude::*;
 use std::fs;
-
-//displays the vn library as a simple list of cards
 #[component]
 pub fn LibraryView(
     vns: Vec<VisualNovel>,
@@ -14,68 +12,53 @@ pub fn LibraryView(
     let library_is_empty = vns.is_empty();
     rsx! {
         section { class: "library-section",
-
             div { class: "library-heading",
                 h2 { "Library" }
                 span { class: "library-count", "{vns.len()}" }
             }
-
             if library_is_empty {
                 p { "No visual novels in your library yet." }
             } else {
                 div { class: "vn-grid",
-
                     for vn in vns {
                         {
                             let vn_id = vn.id;
-
                             let card_class = if selected_vn_id == Some(vn_id) {
                                 "vn-card selected"
                             } else {
                                 "vn-card"
                             };
-
                             let favourite_button_class = if vn.is_favourite {
                                 "favourite-button active"
                             } else {
                                 "favourite-button"
                             };
-
                             let favourite_label = if vn.is_favourite {
                                 "Remove from favourites"
                             } else {
                                 "Add to favourites"
                             };
-
                             rsx! {
                                 article {
-
                                     class: "{card_class}",
-
                                     onclick: move |_| {
                                         on_select.call(vn.id);
                                     },
-
                                     button {
                                         class: "{favourite_button_class}",
                                         title: "{favourite_label}",
                                         aria_label: "{favourite_label}",
-
                                         onclick: move |event| {
                                             event.stop_propagation();
                                             on_toggle_favourite.call(vn_id);
                                         },
-
                                         if vn.is_favourite {
                                             "★"
                                         } else {
                                             "☆"
                                         }
-
                                     }
-
                                     div { class: "vn-cover-frame",
-
                                         if let Some(cover_src) = cover_source(vn.clone()) {
                                             img {
                                                 class: "vn-cover",
@@ -86,10 +69,8 @@ pub fn LibraryView(
                                             div { class: "vn-cover-placeholder", "No cover" }
                                         }
                                     }
-
                                     div { class: "vn-card-info",
                                         h3 { "{vn.title}" }
-
                                         if !vn.tags.is_empty() {
                                             div { class: "vn-card-tags",
                                                 for tag in vn.tags.iter().take(3) {
@@ -107,7 +88,6 @@ pub fn LibraryView(
         }
     }
 }
-
 ///returns an image source that webview can display for windows users
 pub fn cover_source(vn: VisualNovel) -> Option<String> {
     match vn.cover_path {
@@ -115,7 +95,6 @@ pub fn cover_source(vn: VisualNovel) -> Option<String> {
         None => vn.cover_url,
     }
 }
-
 ///converts a saved local cover path into a webview image source
 fn local_cover_source(path: String) -> Option<String> {
     match local_path_to_data_url(&path) {
@@ -129,21 +108,16 @@ fn local_cover_source(path: String) -> Option<String> {
         }
     }
 }
-
 ///reads a local image file and turns it into data:image/... url
 fn local_path_to_data_url(path: &str) -> Option<String> {
     let image_bytes = fs::read(path).ok()?;
     let mime_type = image_mime_type(path);
-
     let encoded_image = base64::engine::general_purpose::STANDARD.encode(image_bytes);
-
     Some(format!("data:{mime_type};base64,{encoded_image}"))
 }
-
 ///match mime type to file extension
 fn image_mime_type(path: &str) -> &'static str {
     let lower_path = path.to_lowercase();
-
     if lower_path.ends_with(".png") {
         "image/png"
     } else if lower_path.ends_with(".webp") {

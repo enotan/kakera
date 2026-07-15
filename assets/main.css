@@ -329,13 +329,57 @@ img {
 .topbar {
   display: grid;
   grid-template-columns:
-    minmax(260px, 420px) 130px 140px 150px minmax(20px, 1fr)
+    minmax(260px, 420px) 130px 210px 150px minmax(20px, 1fr)
     44px;
   gap: 14px;
   align-items: end;
   border-bottom: 0;
   background: transparent;
   padding: 24px 28px 16px;
+}
+
+.topbar-segmented-control {
+  height: 48px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(8, 24, 48, 0.72);
+  box-shadow: inset 0 0 0 1px var(--accent-inset-ring);
+}
+
+.topbar-segment {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 0.18s ease;
+}
+
+.topbar-segment:hover {
+  border: 0;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.topbar-segment.active {
+  border: 0;
+  background: var(--accent-soft-2);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    0 6px 16px rgba(20, 80, 180, 0.18);
 }
 
 .topbar-select-field {
