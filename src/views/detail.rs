@@ -25,6 +25,7 @@ pub fn DetailView(
     on_launch: EventHandler<u64>,
     on_run_tool: EventHandler<(u64, String)>,
     on_launch_mode_change: EventHandler<(u64, LaunchMode)>,
+    on_steam_app_id_change: EventHandler<(u64, String)>,
     on_wine_binary_change: EventHandler<(u64, String)>,
     on_proton_path_change: EventHandler<(u64, String)>,
     on_umu_game_id_change: EventHandler<(u64, String)>,
@@ -51,8 +52,11 @@ pub fn DetailView(
     let mut executable_path_draft = use_signal(|| executable_path_text.clone());
     let wine_prefix_text = vn.wine_prefix.clone().unwrap_or_default();
     let wine_locale_text = vn.wine_locale.clone().unwrap_or_default();
-    let show_compatibility_settings =
-        cfg!(target_os = "linux") && vn.launch_mode != LaunchMode::Native;
+    let show_compatibility_settings = cfg!(target_os = "linux")
+        && (vn.launch_mode == LaunchMode::Wine
+            || vn.launch_mode == LaunchMode::Proton
+            || vn.launch_mode == LaunchMode::Steam);
+
     let mut wine_prefix_draft = use_signal(|| wine_prefix_text.clone());
     let mut wine_locale_draft = use_signal(|| wine_locale_text.clone());
     let mut launch_arguments_draft = use_signal(|| vn.launch_arguments.clone());
@@ -65,6 +69,14 @@ pub fn DetailView(
     let proton_path_value = proton_path_draft.read().clone();
     let mut umu_game_id_draft = use_signal(|| vn.umu_game_id.clone());
     let umu_game_id_value = umu_game_id_draft.read().clone();
+    let steam_app_id_text = vn
+        .steam_app_id
+        .map(|app_id| app_id.to_string())
+        .unwrap_or_default();
+
+    let mut steam_app_id_draft = use_signal(|| steam_app_id_text);
+    let steam_app_id_value = steam_app_id_draft.read().clone();
+
     let executable_path_value = executable_path_draft.read().clone();
     let wine_prefix_value = wine_prefix_draft.read().clone();
     let wine_locale_value = wine_locale_draft.read().clone();
@@ -366,11 +378,13 @@ pub fn DetailView(
                                 LaunchMode::Native => "native",
                                 LaunchMode::Wine => "wine",
                                 LaunchMode::Proton => "proton",
+                                LaunchMode::Steam => "steam",
                             },
                             onchange: move |event| {
                                 let launch_mode = match event.value().as_str() {
                                     "wine" => LaunchMode::Wine,
                                     "proton" => LaunchMode::Proton,
+                                    "steam" => LaunchMode::Steam,
                                     _ => LaunchMode::Native,
                                 };
                                 on_launch_mode_change.call((vn.id, launch_mode))
@@ -378,6 +392,7 @@ pub fn DetailView(
                             option { value: "native", "Native" }
                             option { value: "wine", "Wine" }
                             option { value: "proton", "Proton" }
+                            option { value: "steam", "Steam" }
                         }
                     }
                     if show_compatibility_settings {
@@ -496,6 +511,30 @@ pub fn DetailView(
                                             },
                                             onblur: move |_| {
                                                 on_umu_game_id_change.call((vn.id, umu_game_id_draft.read().clone()));
+                                            },
+                                        }
+                                    }
+                                }
+                                if vn.launch_mode == LaunchMode::Steam {
+                                    label {
+                                        "Steam App ID"
+
+                                        input {
+                                            r#type: "number",
+                                            min: "1",
+                                            step: "1",
+                                            placeholder: "1961950",
+                                            value: "{steam_app_id_value}",
+
+                                            oninput: move |event| {
+                                                steam_app_id_draft.set(event.value());
+                                            },
+
+                                            onblur: move |_| {
+                                                on_steam_app_id_change.call((
+                                                    vn.id,
+                                                    steam_app_id_draft.read().clone(),
+                                                ));
                                             },
                                         }
                                     }

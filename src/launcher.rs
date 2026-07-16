@@ -8,6 +8,7 @@ use std::process::{Child, Command, Stdio};
 pub fn launch_executable(
     executable_path: String,
     launch_mode: LaunchMode,
+    steam_app_id: Option<u32>,
     wine_binary: Option<String>,
     wine_prefix: Option<String>,
     wine_locale: Option<String>,
@@ -91,6 +92,32 @@ pub fn launch_executable(
             };
             command.arg(path);
             command.args(launch_arguments.split_whitespace());
+            attach_launch_log(&mut command, stdout_log, stderr_log);
+            command.spawn()?
+        }
+        LaunchMode::Steam => {
+            let app_id = steam_app_id.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Steam App ID is not configured",
+                )
+            })?;
+
+            let mut command = if cfg!(target_os = "windows") {
+                let mut command = Command::new("cmd");
+                command
+                    .arg("/C")
+                    .arg("start")
+                    .arg("")
+                    .arg(format!("steam://rungameid/{app_id}"));
+                command
+            } else {
+                let mut command =
+                    host_command("steam".to_string(), launch_environment, working_directory);
+                command.arg("-applaunch").arg(app_id.to_string());
+                command
+            };
+
             attach_launch_log(&mut command, stdout_log, stderr_log);
             command.spawn()?
         }
