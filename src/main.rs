@@ -12,10 +12,10 @@ mod wine;
 
 use covers::cache_cover_image;
 use discord_presence::DiscordPresence;
-use launcher::{
-    ToolLaunch, install_steam_tool_wrapper, launch_executable, launch_steam_tool,
-    parse_launch_environment,
-};
+#[cfg(target_os = "linux")]
+use launcher::install_steam_tool_wrapper;
+use launcher::{ToolLaunch, launch_executable, launch_steam_tool, parse_launch_environment};
+
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
     AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
