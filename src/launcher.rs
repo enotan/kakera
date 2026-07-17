@@ -1,9 +1,95 @@
 use crate::models::LaunchMode;
+use crate::storage::kakera_data_dir;
 use crate::system::find_host_command;
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
+
 use std::io;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+
+#[cfg(target_os = "linux")]
+const STEAM_WRAPPER_SCRIPT: &str = r#"#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+helper="$script_dir/kakera-steam-helper"
+arguments=("$@")
+last_separator=-1
+
+for index in "${!arguments[@]}"; do
+    if [[ "${arguments[$index]}" == "--" ]]; then
+        last_separator=$index
+    fi
+done
+
+if (( last_separator < 0 )); then
+    echo "Kakera wrapper: Steam command did not contain a --
+    separator." >&2
+    exit 1
+fi
+
+if [[ ! -x "$helper" ]]; then
+    echo "Kakera wrapper: helper is missing or not executable:
+    $helper" >&2
+    exit 1
+fi
+
+runtime_arguments=("${arguments[@]:0:last_separator + 1}")
+game_arguments=("${arguments[@]:last_separator + 1}")
+
+exec "${runtime_arguments[@]}" "$helper" "${game_arguments[@]}"
+"#;
+
+#[cfg(target_os = "linux")]
+const STEAM_HELPER_SCRIPT: &str = r#"#!/usr/bin/env bash
+set -u
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+app_id="${STEAM_COMPAT_APP_ID:-}"
+
+if [[ -z "$app_id" ]]; then
+    echo "Kakera helper: Steam App ID is unavailable." >&2
+    exit 1
+fi
+
+request_file="$script_dir/tool-request-$app_id"
+active_file="$script_dir/active-$app_id"
+log_file="$script_dir/helper-$app_id.log"
+
+
+if [[ "$#" -lt 3 ]]; then
+    echo "Kakera helper: incomplete Proton command." >> "$log_file"
+    exit 1
+fi
+
+proton_runner="$1"
+shift
+
+rm -f "$request_file"
+touch "$active_file"
+trap 'rm -f "$active_file" "$request_file"' EXIT
+
+"$proton_runner" "$@" >> "$log_file" 2>&1 &
+game_process=$!
+
+while kill -0 "$game_process" 2>/dev/null; do
+    if [[ -s "$request_file" ]]; then
+        tool_path="$(head -n 1 "$request_file")"
+        rm -f "$request_file"
+
+        echo "Launching tool: $tool_path" >> "$log_file"
+        "$proton_runner" run "$tool_path" >> "$log_file" 2>&1 &
+    fi
+
+    sleep 0.25
+done
+
+wait "$game_process"
+"#;
+
 ///launch the executable
 pub fn launch_executable(
     executable_path: String,
@@ -124,6 +210,93 @@ pub fn launch_executable(
     };
     Ok(child)
 }
+
+///describes how a tool was started
+pub enum ToolLaunch {
+    Process(Child),
+    Queued,
+}
+
+///launches tools inside a steam game's proton environment
+pub fn launch_steam_tool(
+    tool_path: String,
+    app_id: u32,
+    launch_environment: Vec<(String, String)>,
+    launch_log_path: Option<PathBuf>,
+) -> Result<ToolLaunch, io::Error> {
+    let path = PathBuf::from(tool_path);
+    let working_directory = path.parent().map(Path::to_path_buf);
+
+    if cfg!(target_os = "windows") {
+        let mut stdout_log = None;
+        let mut stderr_log = None;
+
+        if let Some(log_path) = launch_log_path {
+            stdout_log = Some(
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)?,
+            );
+            stderr_log = Some(
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)?,
+            );
+        }
+
+        let mut command = host_command(
+            path.to_string_lossy().to_string(),
+            launch_environment,
+            working_directory,
+        );
+
+        attach_launch_log(&mut command, stdout_log, stderr_log);
+        return Ok(ToolLaunch::Process(command.spawn()?));
+    }
+
+    let tools_directory = kakera_data_dir()?.join("steam-tools");
+    let active_path = tools_directory.join(format!("active-{app_id}"));
+
+    if !active_path.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotConnected,
+            "Steam wrapper is not active; launch the game from Steam first",
+        ));
+    }
+
+    let request_path = tools_directory.join(format!("tool-request-{app_id}"));
+    fs::write(request_path, format!("{}\n", path.display()))?;
+
+    Ok(ToolLaunch::Queued)
+}
+
+/// installs the steam tool scripts and returns the steam launch option
+#[cfg(target_os = "linux")]
+pub fn install_steam_tool_wrapper() -> Result<String, io::Error> {
+    let tools_directory = kakera_data_dir()?.join("steam-tools");
+    fs::create_dir_all(&tools_directory)?;
+
+    let wrapper_path = tools_directory.join("kakera-steam-wrapper");
+    let helper_path = tools_directory.join("kakera-steam-helper");
+
+    write_executable_script(wrapper_path.clone(), STEAM_WRAPPER_SCRIPT.to_string())?;
+    write_executable_script(helper_path, STEAM_HELPER_SCRIPT.to_string())?;
+
+    Ok(format!("{} %command%", wrapper_path.display()))
+}
+
+#[cfg(target_os = "linux")]
+fn write_executable_script(path: PathBuf, contents: String) -> Result<(), io::Error> {
+    fs::write(&path, contents)?;
+
+    let permissions = fs::Permissions::from_mode(0o755);
+    fs::set_permissions(path, permissions)?;
+
+    Ok(())
+}
+
 ///for running host commands with flatpak
 fn host_command(
     program: String,

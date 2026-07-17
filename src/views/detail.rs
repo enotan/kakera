@@ -18,6 +18,7 @@ pub fn DetailView(
     wine_runners: Vec<WineRunner>,
     proton_runners: Vec<ProtonRunner>,
     steam_prefixes: Vec<SteamPrefix>,
+    steam_launch_option: String,
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
@@ -535,6 +536,19 @@ pub fn DetailView(
                                                     vn.id,
                                                     steam_app_id_draft.read().clone(),
                                                 ));
+                                            },
+                                        }
+                                    }
+
+                                    label {
+                                        "Steam launch option"
+
+                                        input {
+                                            r#type: "text",
+                                            readonly: true,
+                                            value: "{steam_launch_option}",
+                                            onclick: move |event| {
+                                                event.stop_propagation();
                                             },
                                         }
                                     }

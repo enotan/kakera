@@ -12,7 +12,10 @@ mod wine;
 
 use covers::cache_cover_image;
 use discord_presence::DiscordPresence;
-use launcher::{launch_executable, parse_launch_environment};
+use launcher::{
+    ToolLaunch, install_steam_tool_wrapper, launch_executable, launch_steam_tool,
+    parse_launch_environment,
+};
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
     AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
@@ -208,6 +211,19 @@ fn App() -> Element {
     let wine_runners = use_hook(wine::detect_wine_runners);
     let proton_runners = use_hook(wine::detect_proton_runners);
     let steam_prefixes = use_hook(wine::detect_steam_prefixes);
+
+    let steam_launch_option = use_hook(|| {
+        #[cfg(target_os = "linux")]
+        {
+            install_steam_tool_wrapper()
+                .unwrap_or_else(|error| format!("Could not install Steam wrapper: {error}"))
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            String::new()
+        }
+    });
 
     rsx! {
 
@@ -610,6 +626,7 @@ fn App() -> Element {
                                             wine_runners: wine_runners.clone(),
                                             proton_runners: proton_runners.clone(),
                                             steam_prefixes: steam_prefixes.clone(),
+                                            steam_launch_option: steam_launch_option.clone(),
                                             on_notes_change: move |(id, notes): (u64, String)| {
                                                 update_vn_and_save(
                                                     &mut vns,
@@ -895,13 +912,6 @@ fn App() -> Element {
                                                         );
                                                     return;
                                                 }
-                                                if vn.launch_mode == LaunchMode::Steam {
-                                                    notification.set(Some(AppNotification {
-                                                        level: NotificationLevel::Warning,
-                                                        message: "Running tools for Steam games is not supported yet.".to_string(),
-                                                    }));
-                                                    return;
-                                                }
                                                 let launch_environment = match parse_launch_environment(
                                                     vn.launch_environment.clone(),
                                                 ) {
@@ -933,20 +943,48 @@ fn App() -> Element {
                                                         None
                                                     }
                                                 };
-                                                match launch_executable(
-                                                    tool_path,
-                                                    vn.launch_mode,
-                                                    None,
-                                                    vn.wine_binary,
-                                                    vn.wine_prefix,
-                                                    vn.wine_locale,
-                                                    vn.proton_path,
-                                                    vn.umu_game_id,
-                                                    vn.launch_arguments,
-                                                    launch_environment,
-                                                    launch_log_path.clone(),
-                                                ) {
-                                                    Ok(mut child) => {
+                                                let launch_result = if vn.launch_mode == LaunchMode::Steam {
+                                                    let Some(app_id) = vn.steam_app_id else {
+                                                        notification.set(Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not run tool: Steam App ID is not configured.".to_string(),
+                                                        }));
+                                                        return;
+                                                    };
+
+                                                    launch_steam_tool(
+                                                        tool_path,
+                                                        app_id,
+                                                        launch_environment,
+                                                        launch_log_path.clone(),
+                                                    )
+                                                } else {
+                                                    launch_executable(
+                                                        tool_path,
+                                                        vn.launch_mode,
+                                                        None,
+                                                        vn.wine_binary,
+                                                        vn.wine_prefix,
+                                                        vn.wine_locale,
+                                                        vn.proton_path,
+                                                        vn.umu_game_id,
+                                                        vn.launch_arguments,
+                                                        launch_environment,
+                                                        launch_log_path.clone(),
+                                                    ).map(ToolLaunch::Process)
+                                                };
+
+                                                match launch_result {
+                                                    Ok(ToolLaunch::Queued) => {
+                                                        notification.set(Some(AppNotification {
+                                                            level: NotificationLevel::Info,
+                                                            message: format!(
+                                                                "Queued tool inside {}'s Steam environment.",
+                                                                vn.title
+                                                            ),
+                                                        }));
+                                                    }
+                                                    Ok(ToolLaunch::Process(mut child)) => {
                                                         notification
                                                             .set(
                                                                 Some(AppNotification {
