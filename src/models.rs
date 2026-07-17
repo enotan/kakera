@@ -6,6 +6,7 @@ pub enum LaunchMode {
     Native,
     Wine,
     Proton,
+    Steam,
 }
 ///A visual novel stored in the library
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -24,6 +25,8 @@ pub struct VisualNovel {
     pub executable_path: Option<String>,
     #[serde(default)]
     pub launch_mode: LaunchMode,
+    #[serde(default)]
+    pub steam_app_id: Option<u32>,
     #[serde(default)]
     pub wine_binary: Option<String>,
     #[serde(default)]
