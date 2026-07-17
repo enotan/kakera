@@ -95,4 +95,4 @@ modules:
 
       - type: git
         url: https://github.com/enotan/kakera.git
-        branch: main
+        tag: v0.1.4
