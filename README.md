@@ -97,10 +97,55 @@ paru -S kakera-bin
 
 ### NixOS
 
-```
-Hopefully coming as a flake soon.
+Run Kakera directly without installing it:
+
+```bash
+nix run github:enotan/kakera
 ```
 
+Install Kakera into your user profile:
+
+```bash
+nix profile add github:enotan/kakera
+```
+
+#### NixOS Flake
+
+Installing Kakera through your NixOS config is recommended, as it installs it as
+a system application with its icon and desktop entry.
+
+Add Kakera to your `flake.nix` inputs:
+
+```nix
+{
+    inputs.kakera.url = "github:enotan/kakera";
+}
+```
+
+Pass the input to your NixOS modules:
+```nix
+outputs =
+    { nixpkgs, kakera, ... }:
+    {
+        nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            specialArgs = { inherit kakera; };
+            modules = [ ./configuration.nix ];
+        };
+    };
+```
+
+Then add Kakera to `environment.systemPackages` in `configuration.nix`:
+
+```nix
+{ pkgs, kakera, ... }:
+
+{
+    environment.systemPackages = [
+        kakera.packages.${pkgs.stdenv.hostPlatform.system}.default
+    ];
+}
+```
 
 ## Building from Source
 

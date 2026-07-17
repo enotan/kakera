@@ -11,3 +11,4 @@ flatpak-build
 *.flatpak
 flatpak-repo
 .direnv/
+/result

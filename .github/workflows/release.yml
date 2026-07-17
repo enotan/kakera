@@ -119,3 +119,19 @@ jobs:
         with:
           name: kakera-flatpak
           path: "*.flatpak"
+
+  nix:
+    name: Nix flake
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Validate flake
+        run: nix flake check --no-build
+
+      - name: Build Nix package
+        run: nix build .#kakera --print-build-logs
