@@ -19,7 +19,7 @@ use launcher::{ToolLaunch, launch_executable, launch_steam_tool, parse_launch_en
 use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
     AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
-    NotificationLevel, PlaySession, StoryRoute, VisualNovel, default_umu_game_id,
+    NotificationLevel, PlaySession, SaveSyncConfig, StoryRoute, VisualNovel, default_umu_game_id,
 };
 use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
@@ -543,6 +543,7 @@ fn App() -> Element {
                                                         wine_locale: None,
                                                         launch_arguments: String::new(),
                                                         launch_environment: String::new(),
+                                                        save_sync: SaveSyncConfig::default(),
                                                         proton_path: None,
                                                         umu_game_id: default_umu_game_id(),
                                                         notes: String::new(),

@@ -41,6 +41,8 @@ pub struct VisualNovel {
     pub launch_arguments: String,
     #[serde(default)]
     pub launch_environment: String,
+    #[serde(default)]
+    pub save_sync: SaveSyncConfig,
     pub notes: String,
     pub routes: Vec<StoryRoute>,
     #[serde(default)]
@@ -69,6 +71,37 @@ pub struct PlaySession {
     pub started_at: String,
     pub duration_seconds: u64,
     pub notes: Option<String>,
+}
+///where a vn saves its save data
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SaveLocation {
+    pub path: String,
+
+    #[serde(default)]
+    pub label: String,
+}
+
+///controls save snapshots for 1 vn
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct SaveSyncConfig {
+    pub enabled: bool,
+    pub locations: Vec<SaveLocation>,
+    pub snapshot_before_launch: bool,
+    pub snapshot_after_exit: bool,
+    pub backup_before_restore: bool,
+}
+
+impl Default for SaveSyncConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            locations: Vec::new(),
+            snapshot_before_launch: true,
+            snapshot_after_exit: true,
+            backup_before_restore: true,
+        }
+    }
 }
 ///types of notificiations
 #[derive(Debug, Clone, PartialEq)]
@@ -136,5 +169,34 @@ impl Default for AppSettings {
             library_sort_mode: LibrarySortMode::default(),
             library_filter_mode: LibraryFilterMode::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VisualNovel;
+
+    #[test]
+    fn older_vn_uses_default_save_sync_config() {
+        let old_json = r#"
+        {
+            "id": 1,
+            "title": "Legacy",
+            "cover_url": null,
+            "description": null,
+            "notes": "",
+            "routes": [],
+            "play_sessions": []
+        }
+        "#;
+
+        let vn = serde_json::from_str::<VisualNovel>(old_json)
+            .expect("an older VisualNovel should still deserialize");
+
+        assert!(!vn.save_sync.enabled);
+        assert!(vn.save_sync.locations.is_empty());
+        assert!(vn.save_sync.snapshot_before_launch);
+        assert!(vn.save_sync.snapshot_after_exit);
+        assert!(vn.save_sync.backup_before_restore);
     }
 }
