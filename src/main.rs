@@ -3,6 +3,7 @@ mod discord_presence;
 mod launcher;
 mod logs;
 mod models;
+mod save_sync;
 mod storage;
 mod system;
 mod views;
