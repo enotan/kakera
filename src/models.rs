@@ -75,6 +75,9 @@ pub struct PlaySession {
 ///where a vn saves its save data
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SaveLocation {
+    #[serde(default)]
+    pub id: String,
+
     pub path: String,
 
     #[serde(default)]
