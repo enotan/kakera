@@ -49,6 +49,14 @@ pub struct StoredBlob {
     pub reused_existing_blob: bool,
 }
 
+///a regular save file found on this device before it enters blob storage
+#[derive(Debug, Clone, PartialEq)]
+struct DiscoveredSaveFile {
+    location_id: String,
+    relative_path: String,
+    source_path: PathBuf,
+}
+
 const HASH_BUFFER_SIZE: usize = 64 * 1024;
 
 ///calculates the blake3 hash and byte size of one file
@@ -195,6 +203,175 @@ pub struct SnapshotManifest {
     pub files: Vec<SnapshotFile>,
 }
 
+///inputs required to create one complete local snapshot
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateSnapshotRequest {
+    pub vn_sync_id: String,
+    pub device_id: String,
+    pub parent_snapshot_id: Option<String>,
+    pub locations: Vec<SaveLocation>,
+    pub storage_directory: PathBuf,
+}
+
+///result of successfully creating and persisting a snapshot
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreatedSnapshot {
+    pub manifest: SnapshotManifest,
+    pub manifest_path: PathBuf,
+    pub new_blob_count: usize,
+    pub reused_blob_count: usize,
+}
+
+///derives a stable ID from the completed manifest contents
+fn snapshot_id_for_manifest(manifest: &SnapshotManifest) -> Result<String, io::Error> {
+    let identity_data = (
+        manifest.format_version,
+        &manifest.vn_sync_id,
+        &manifest.device_id,
+        &manifest.created_at,
+        &manifest.parent_snapshot_id,
+        &manifest.files,
+    );
+
+    let encoded = serde_json::to_vec(&identity_data)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+    Ok(blake3::hash(&encoded).to_hex().to_string())
+}
+
+///writes a snapshot manifest without exposing a partially written file
+fn persist_manifest(
+    manifest: &SnapshotManifest,
+    manifest_directory: PathBuf,
+) -> Result<PathBuf, io::Error> {
+    fs::create_dir_all(&manifest_directory)?;
+
+    let manifest_path = manifest_directory.join(format!("{}.json", manifest.snapshot_id));
+
+    let mut temp_manifest = tempfile::NamedTempFile::new_in(&manifest_directory)?;
+
+    serde_json::to_writer_pretty(temp_manifest.as_file_mut(), manifest)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+    temp_manifest.as_file_mut().write_all(b"\n")?;
+    temp_manifest.as_file_mut().sync_all()?;
+
+    match temp_manifest.persist_noclobber(&manifest_path) {
+        Ok(_) => Ok(manifest_path),
+
+        Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
+            let existing_bytes = fs::read(&manifest_path)?;
+
+            let existing_manifest: SnapshotManifest = serde_json::from_slice(&existing_bytes)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+            if &existing_manifest != manifest {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Existing snapshot manifest failed verification",
+                ));
+            }
+
+            Ok(manifest_path)
+        }
+
+        Err(error) => Err(error.error),
+    }
+}
+
+///creates and safely persists one complete local save snapshot
+pub fn create_snapshot(request: CreateSnapshotRequest) -> Result<CreatedSnapshot, io::Error> {
+    let CreateSnapshotRequest {
+        vn_sync_id,
+        device_id,
+        parent_snapshot_id,
+        locations,
+        storage_directory,
+    } = request;
+
+    if vn_sync_id.trim().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "A snapshot requires a VN sync ID",
+        ));
+    }
+
+    if device_id.trim().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "A snapshot requires a device ID",
+        ));
+    }
+
+    if locations.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "A snapshot requires at least one save location",
+        ));
+    }
+
+    let blob_directory = storage_directory.join("blobs");
+    let manifest_directory = storage_directory.join("manifests");
+
+    let mut files = Vec::new();
+    let mut new_blob_count = 0;
+    let mut reused_blob_count = 0;
+
+    for location in locations {
+        let discovered_files = discover_location_files(location)?;
+
+        for discovered in discovered_files {
+            let DiscoveredSaveFile {
+                location_id,
+                relative_path,
+                source_path,
+            } = discovered;
+
+            let stored_blob = store_blob(source_path, blob_directory.clone())?;
+
+            if stored_blob.reused_existing_blob {
+                reused_blob_count += 1;
+            } else {
+                new_blob_count += 1;
+            }
+
+            files.push(SnapshotFile {
+                location_id,
+                relative_path,
+                size_bytes: stored_blob.fingerprint.size_bytes,
+                content_hash: stored_blob.fingerprint.content_hash,
+            });
+        }
+    }
+
+    files.sort_by(|left, right| {
+        left.location_id
+            .cmp(&right.location_id)
+            .then_with(|| left.relative_path.cmp(&right.relative_path))
+    });
+
+    let mut manifest = SnapshotManifest {
+        format_version: SNAPSHOT_FORMAT_VERSION,
+        snapshot_id: String::new(),
+        vn_sync_id,
+        device_id,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        parent_snapshot_id,
+        files,
+    };
+
+    manifest.snapshot_id = snapshot_id_for_manifest(&manifest)?;
+
+    let manifest_path = persist_manifest(&manifest, manifest_directory)?;
+
+    Ok(CreatedSnapshot {
+        manifest,
+        manifest_path,
+        new_blob_count,
+        reused_blob_count,
+    })
+}
+
 ///inspects one configured save location without modifying it
 pub fn inspect_save_location(location: SaveLocation) -> SaveLocationStatus {
     let state = match std::fs::metadata(&location.path) {
@@ -215,18 +392,28 @@ pub fn inspect_save_locations(locations: Vec<SaveLocation>) -> Vec<SaveLocationS
     locations.into_iter().map(inspect_save_location).collect()
 }
 
-///builds a manifest entry for 1 file
-fn snapshot_file_entry(
+///converts a local path into a file record
+fn discovered_save_file(
     location_id: String,
     relative_path: PathBuf,
     source_path: PathBuf,
+) -> Result<DiscoveredSaveFile, io::Error> {
+    Ok(DiscoveredSaveFile {
+        location_id,
+        relative_path: normalize_relative_path(relative_path)?,
+        source_path,
+    })
+}
+
+///hashes one discovered file and builds it a portable manifest entry
+fn snapshot_file_from_discovered(
+    discovered: DiscoveredSaveFile,
 ) -> Result<SnapshotFile, io::Error> {
-    let normalized_path = normalize_relative_path(relative_path)?;
-    let fingerprint = hash_file(source_path)?;
+    let fingerprint = hash_file(discovered.source_path)?;
 
     Ok(SnapshotFile {
-        location_id,
-        relative_path: normalized_path,
+        location_id: discovered.location_id,
+        relative_path: discovered.relative_path,
         size_bytes: fingerprint.size_bytes,
         content_hash: fingerprint.content_hash,
     })
@@ -236,7 +423,7 @@ fn snapshot_file_entry(
 fn collect_directory_files(
     root: PathBuf,
     location_id: String,
-) -> Result<Vec<SnapshotFile>, io::Error> {
+) -> Result<Vec<DiscoveredSaveFile>, io::Error> {
     let mut pending_directories = vec![root.clone()];
     let mut files = Vec::new();
 
@@ -260,7 +447,7 @@ fn collect_directory_files(
                     .strip_prefix(&root)
                     .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
 
-                files.push(snapshot_file_entry(
+                files.push(discovered_save_file(
                     location_id.clone(),
                     relative_path.to_path_buf(),
                     path,
@@ -274,8 +461,8 @@ fn collect_directory_files(
     Ok(files)
 }
 
-///collects manifest entries from one configured save file or dir
-pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile>, io::Error> {
+///discovers files from one configured save file or dir
+fn discover_location_files(location: SaveLocation) -> Result<Vec<DiscoveredSaveFile>, io::Error> {
     if location.id.trim().is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -284,7 +471,6 @@ pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile
     }
 
     let root = PathBuf::from(&location.path);
-
     let metadata = fs::symlink_metadata(&root)?;
     let file_type = metadata.file_type();
 
@@ -296,9 +482,9 @@ pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile
     }
 
     if file_type.is_file() {
-        let file = snapshot_file_entry(location.id, PathBuf::new(), root)?;
+        let discovered = discovered_save_file(location.id, PathBuf::new(), root)?;
 
-        return Ok(vec![file]);
+        return Ok(vec![discovered]);
     }
 
     if file_type.is_dir() {
@@ -311,12 +497,24 @@ pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile
     ))
 }
 
+///collects manifest entries from one configured save file or dir
+pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile>, io::Error> {
+    let discovered_files = discover_location_files(location)?;
+    let mut snapshot_files = Vec::new();
+
+    for discovered in discovered_files {
+        snapshot_files.push(snapshot_file_from_discovered(discovered)?);
+    }
+
+    Ok(snapshot_files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile, SnapshotManifest,
-        collect_location_files, hash_file, inspect_save_locations, normalize_relative_path,
-        store_blob,
+        CreateSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile,
+        SnapshotManifest, collect_location_files, create_snapshot, hash_file,
+        inspect_save_locations, normalize_relative_path, store_blob,
     };
 
     use crate::models::SaveLocation;
@@ -566,5 +764,71 @@ mod tests {
         assert_eq!(blob_count, 2);
 
         fs::remove_dir_all(test_root).expect("the temporary blob directory should be removed");
+    }
+
+    #[test]
+    fn creates_a_complete_local_snapshot() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-complete-snapshot-{}", std::process::id()));
+
+        let saves_directory = test_root.join("live-saves");
+        let nested_directory = saves_directory.join("slot-1");
+        let storage_directory = test_root.join("snapshot-store");
+
+        let _ = fs::remove_dir_all(&test_root);
+
+        fs::create_dir_all(&nested_directory).expect("the nested save directory should be created");
+
+        fs::write(saves_directory.join("settings.dat"), b"settings")
+            .expect("the settings save should be written");
+
+        fs::write(nested_directory.join("progress.dat"), b"progress")
+            .expect("the progress save should be written");
+
+        let created = create_snapshot(CreateSnapshotRequest {
+            vn_sync_id: "vn-test".to_string(),
+            device_id: "test-device".to_string(),
+            parent_snapshot_id: None,
+            locations: vec![SaveLocation {
+                id: "main-saves".to_string(),
+                path: saves_directory.to_string_lossy().into_owned(),
+                label: "Main saves".to_string(),
+            }],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the complete snapshot should be created");
+
+        assert_eq!(created.manifest.format_version, SNAPSHOT_FORMAT_VERSION);
+        assert_eq!(created.manifest.vn_sync_id, "vn-test");
+        assert_eq!(created.manifest.device_id, "test-device");
+        assert_eq!(created.manifest.files.len(), 2);
+        assert_eq!(created.new_blob_count, 2);
+        assert_eq!(created.reused_blob_count, 0);
+        assert!(!created.manifest.snapshot_id.is_empty());
+        assert!(created.manifest_path.is_file());
+
+        let saved_manifest_bytes =
+            fs::read(&created.manifest_path).expect("the persisted manifest should be readable");
+
+        let saved_manifest: SnapshotManifest = serde_json::from_slice(&saved_manifest_bytes)
+            .expect(
+                "the persisted manifest should contain valid
+              JSON",
+            );
+
+        assert_eq!(saved_manifest, created.manifest);
+
+        for file in &created.manifest.files {
+            let blob_path = storage_directory
+                .join("blobs")
+                .join(format!("{}.blob", file.content_hash));
+
+            assert!(blob_path.is_file());
+        }
+
+        fs::remove_dir_all(test_root).expect(
+            "the complete snapshot test directory should be
+          removed",
+        );
     }
 }
