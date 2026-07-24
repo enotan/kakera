@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use std::{
     fs::{self, File},
-    io::{self, Read},
+    io::{self, Read, Write},
     path::{Component, PathBuf},
 };
 
@@ -41,6 +41,14 @@ pub struct FileFingerprint {
     pub content_hash: String,
 }
 
+///describes a blob safely stored in local content store
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredBlob {
+    pub path: PathBuf,
+    pub fingerprint: FileFingerprint,
+    pub reused_existing_blob: bool,
+}
+
 const HASH_BUFFER_SIZE: usize = 64 * 1024;
 
 ///calculates the blake3 hash and byte size of one file
@@ -65,6 +73,76 @@ pub fn hash_file(path: PathBuf) -> Result<FileFingerprint, io::Error> {
         size_bytes,
         content_hash: hasher.finalize().to_hex().to_string(),
     })
+}
+
+///copies one source file while hashing the exact bytes written
+fn copy_and_hash_file(
+    source_path: PathBuf,
+    destination: &mut File,
+) -> Result<FileFingerprint, io::Error> {
+    let mut source = File::open(source_path)?;
+    let mut hasher = blake3::Hasher::new();
+    let mut size_bytes = 0_u64;
+    let mut buffer = [0_u8; HASH_BUFFER_SIZE];
+
+    loop {
+        let bytes_read = source.read(&mut buffer)?;
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        let chunk = &buffer[..bytes_read];
+
+        destination.write_all(chunk)?;
+        hasher.update(chunk);
+        size_bytes += bytes_read as u64;
+    }
+
+    destination.sync_all()?;
+
+    Ok(FileFingerprint {
+        size_bytes,
+        content_hash: hasher.finalize().to_hex().to_string(),
+    })
+}
+
+///stores one save file as a content-addressed blob
+pub fn store_blob(source_path: PathBuf, blob_directory: PathBuf) -> Result<StoredBlob, io::Error> {
+    fs::create_dir_all(&blob_directory)?;
+
+    let mut temp_blob = tempfile::NamedTempFile::new_in(&blob_directory)?;
+
+    let fingerprint = copy_and_hash_file(source_path, temp_blob.as_file_mut())?;
+
+    let blob_path = blob_directory.join(format!("{}.blob", fingerprint.content_hash));
+
+    match temp_blob.persist_noclobber(&blob_path) {
+        Ok(_) => Ok(StoredBlob {
+            path: blob_path,
+            fingerprint,
+            reused_existing_blob: false,
+        }),
+
+        Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
+            let existing_fingerprint = hash_file(blob_path.clone())?;
+
+            if existing_fingerprint != fingerprint {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Existing content addressed blob failed verification",
+                ));
+            }
+
+            Ok(StoredBlob {
+                path: blob_path,
+                fingerprint,
+                reused_existing_blob: true,
+            })
+        }
+
+        Err(error) => Err(error.error),
+    }
 }
 
 ///converts a relative platform path into a / separated manifest path
@@ -238,6 +316,7 @@ mod tests {
     use super::{
         SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile, SnapshotManifest,
         collect_location_files, hash_file, inspect_save_locations, normalize_relative_path,
+        store_blob,
     };
 
     use crate::models::SaveLocation;
@@ -439,5 +518,53 @@ mod tests {
             "the temporary symlink directory should be
           removed",
         );
+    }
+    #[test]
+    fn stores_and_reuses_content_addressed_blobs() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-blob-storage-{}", std::process::id()));
+        let source_file = test_root.join("live-save.dat");
+        let blob_directory = test_root.join("blobs");
+        let original_contents = b"visual novel save contents";
+
+        let _ = fs::remove_dir_all(&test_root);
+        fs::create_dir_all(&test_root).expect("the blob test directory should be created");
+        fs::write(&source_file, original_contents).expect("the live save should be written");
+
+        let first_blob = store_blob(source_file.clone(), blob_directory.clone())
+            .expect("the first blob should be stored");
+
+        assert!(!first_blob.reused_existing_blob);
+        assert_eq!(
+            fs::read(&first_blob.path).expect(
+                "the stored blob should
+          be readable"
+            ),
+            original_contents
+        );
+
+        let repeated_blob = store_blob(source_file.clone(), blob_directory.clone())
+            .expect("the identical blob should be reused");
+
+        assert!(repeated_blob.reused_existing_blob);
+        assert_eq!(repeated_blob.path, first_blob.path);
+        assert_eq!(repeated_blob.fingerprint, first_blob.fingerprint);
+
+        fs::write(&source_file, b"new save contents")
+            .expect("the changed live save should be written");
+
+        let changed_blob = store_blob(source_file, blob_directory.clone())
+            .expect("the changed blob should be stored");
+
+        assert!(!changed_blob.reused_existing_blob);
+        assert_ne!(changed_blob.path, first_blob.path);
+
+        let blob_count = fs::read_dir(&blob_directory)
+            .expect("the blob directory should be readable")
+            .count();
+
+        assert_eq!(blob_count, 2);
+
+        fs::remove_dir_all(test_root).expect("the temporary blob directory should be removed");
     }
 }
