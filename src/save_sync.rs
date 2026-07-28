@@ -222,6 +222,29 @@ pub struct CreatedSnapshot {
     pub reused_blob_count: usize,
 }
 
+///inputs required to plan the restoration of one snapshot
+#[derive(Debug, Clone, PartialEq)]
+pub struct RestoreSnapshotRequest {
+    pub manifest: SnapshotManifest,
+    pub locations: Vec<SaveLocation>,
+    pub storage_directory: PathBuf,
+}
+
+///describes one blob and the live save path it would restore
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlannedRestoreFile {
+    pub snapshot_file: SnapshotFile,
+    pub source_blob_path: PathBuf,
+    pub destination_path: PathBuf,
+}
+
+///describes every filesystem change made by a snapshot restore
+#[derive(Debug, Clone, PartialEq)]
+pub struct RestorePlan {
+    pub snapshot_id: String,
+    pub files: Vec<PlannedRestoreFile>,
+}
+
 ///derives a stable ID from the completed manifest contents
 fn snapshot_id_for_manifest(manifest: &SnapshotManifest) -> Result<String, io::Error> {
     let identity_data = (
@@ -276,6 +299,201 @@ fn persist_manifest(
         }
 
         Err(error) => Err(error.error),
+    }
+}
+
+///converts a portable manifest path into a safe local relative path
+fn path_from_manifest(relative_path: String) -> Result<Option<PathBuf>, io::Error> {
+    if relative_path.is_empty() {
+        return Ok(None);
+    }
+
+    if relative_path.starts_with('/')
+        || relative_path.ends_with('/')
+        || relative_path.contains('\\')
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Manifest contains an unsafe save path",
+        ));
+    }
+
+    let mut safe_path = PathBuf::new();
+    for part in relative_path.split('/') {
+        if part.is_empty()
+            || part == "."
+            || part == ".."
+            || part.contains('\0')
+            || part.contains(':')
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Manifest contains an unsafe path component",
+            ));
+        }
+
+        let component_path = PathBuf::from(part);
+        let mut components = component_path.components();
+
+        match (components.next(), components.next()) {
+            (Some(Component::Normal(_)), None) => {
+                safe_path.push(part);
+            }
+
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Manifest contains a non-relative path component",
+                ));
+            }
+        }
+    }
+    Ok(Some(safe_path))
+}
+
+///locates and verifies the blob referenced by one manifest entry
+fn verified_blob_path(
+    snapshot_file: &SnapshotFile,
+    blob_directory: PathBuf,
+) -> Result<PathBuf, io::Error> {
+    let content_hash = &snapshot_file.content_hash;
+
+    if content_hash.len() != 64 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot contains an invalid blob hash",
+        ));
+    }
+
+    for byte in content_hash.bytes() {
+        if !byte.is_ascii_hexdigit() || byte.is_ascii_uppercase() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Snapshot contains a non canonical blob hash",
+            ));
+        }
+    }
+
+    let blob_path = blob_directory.join(format!("{content_hash}.blob"));
+
+    let metadata = fs::symlink_metadata(&blob_path)?;
+
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot blob is not a regular file",
+        ));
+    }
+
+    let actual_fingerprint = hash_file(blob_path.clone())?;
+
+    if actual_fingerprint.size_bytes != snapshot_file.size_bytes
+        || actual_fingerprint.content_hash != snapshot_file.content_hash
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot blob failed integrity verification",
+        ));
+    }
+
+    Ok(blob_path)
+}
+
+///finds exactly one configured location for a manifest location id
+fn location_for_restore(
+    location_id: String,
+    locations: &[SaveLocation],
+) -> Result<SaveLocation, io::Error> {
+    let mut matching_location: Option<SaveLocation> = None;
+
+    for location in locations {
+        if location.id == location_id {
+            if matching_location.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Multiple save locations use the ID {location_id}"),
+                ));
+            }
+            matching_location = Some(location.clone());
+        }
+    }
+
+    match matching_location {
+        Some(location) => Ok(location),
+
+        None => Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("No configured save location matches {location_id}"),
+        )),
+    }
+}
+
+///calculates the live destination path for the one snapshot file
+fn destination_path_for_snapshot_file(
+    snapshot_file: &SnapshotFile,
+    locations: &[SaveLocation],
+) -> Result<PathBuf, io::Error> {
+    let location = location_for_restore(snapshot_file.location_id.clone(), locations)?;
+
+    if location.path.trim().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "A restore location cannot have an empty path",
+        ));
+    }
+
+    let configured_path = PathBuf::from(location.path);
+    let relative_path = path_from_manifest(snapshot_file.relative_path.clone())?;
+
+    match relative_path {
+        None => match fs::symlink_metadata(&configured_path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "A direct save location cannot be a symbolic link",
+            )),
+
+            Ok(metadata) if metadata.file_type().is_dir() => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "A direct save location points to a directory",
+            )),
+
+            Ok(metadata) if !metadata.file_type().is_file() => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "A direct save location is not a regular file",
+            )),
+
+            Ok(_) => Ok(configured_path),
+
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(configured_path),
+
+            Err(error) => Err(error),
+        },
+
+        Some(relative_path) => {
+            match fs::symlink_metadata(&configured_path) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "A save directory cannot be a symbolic link",
+                    ));
+                }
+
+                Ok(metadata) if !metadata.file_type().is_dir() => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "A save directory location is not a directory",
+                    ));
+                }
+
+                Ok(_) => {}
+
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+
+                Err(error) => return Err(error),
+            }
+
+            Ok(configured_path.join(relative_path))
+        }
     }
 }
 
@@ -369,6 +587,82 @@ pub fn create_snapshot(request: CreateSnapshotRequest) -> Result<CreatedSnapshot
         manifest_path,
         new_blob_count,
         reused_blob_count,
+    })
+}
+
+///validates a snapshot and creates a read-only restore plan
+pub fn plan_snapshot_restore(request: RestoreSnapshotRequest) -> Result<RestorePlan, io::Error> {
+    let RestoreSnapshotRequest {
+        manifest,
+        locations,
+        storage_directory,
+    } = request;
+
+    if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "Unsupported snapshot format version {}",
+                manifest.format_version
+            ),
+        ));
+    }
+
+    if manifest.snapshot_id.trim().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "A snapshot manifest requires an ID",
+        ));
+    }
+
+    let expected_snapshot_id = snapshot_id_for_manifest(&manifest)?;
+
+    if expected_snapshot_id != manifest.snapshot_id {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot manifest failed identity verification",
+        ));
+    }
+
+    let snapshot_id = manifest.snapshot_id.clone();
+    let blob_directory = storage_directory.join("blobs");
+    let mut planned_files: Vec<PlannedRestoreFile> = Vec::new();
+
+    for snapshot_file in manifest.files {
+        let destination_path = destination_path_for_snapshot_file(&snapshot_file, &locations)?;
+
+        for existing_file in &planned_files {
+            let existing_path = &existing_file.destination_path;
+
+            if destination_path == *existing_path
+                || destination_path.starts_with(existing_path)
+                || existing_path.starts_with(&destination_path)
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Snapshot contains overlapping restore paths: {} and {}",
+                        existing_path.display(),
+                        destination_path.display()
+                    ),
+                ));
+            }
+        }
+
+        let source_blob_path = verified_blob_path(&snapshot_file, blob_directory.clone())?;
+
+        planned_files.push(PlannedRestoreFile {
+            snapshot_file,
+            source_blob_path,
+            destination_path,
+        });
+    }
+
+    planned_files.sort_by(|left, right| left.destination_path.cmp(&right.destination_path));
+
+    Ok(RestorePlan {
+        snapshot_id,
+        files: planned_files,
     })
 }
 
@@ -512,9 +806,10 @@ pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile,
-        SnapshotManifest, collect_location_files, create_snapshot, hash_file,
-        inspect_save_locations, normalize_relative_path, store_blob,
+        CreateSnapshotRequest, RestoreSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState,
+        SnapshotFile, SnapshotManifest, collect_location_files, create_snapshot, hash_file,
+        inspect_save_locations, normalize_relative_path, path_from_manifest, plan_snapshot_restore,
+        store_blob, verified_blob_path,
     };
 
     use crate::models::SaveLocation;
@@ -830,5 +1125,154 @@ mod tests {
             "the complete snapshot test directory should be
           removed",
         );
+    }
+
+    #[test]
+    fn validates_portable_manifest_paths() {
+        let nested_path = path_from_manifest("slot-1/save.dat".to_string())
+            .expect("A safe nested path should be accepted");
+
+        assert_eq!(
+            nested_path,
+            Some(std::path::PathBuf::from("slot-1").join("save.dat"))
+        );
+
+        let direct_file = path_from_manifest(String::new())
+            .expect("an empty path should represent a direct save file");
+
+        assert_eq!(direct_file, None);
+
+        for unsafe_path in [
+            "../private.dat",
+            "slot/../../private.dat",
+            "/absolute/save.dat",
+            "slot\\..\\private.dat",
+            "slot//save.dat",
+            "slot/",
+            "C:/Windows/save.dat",
+        ] {
+            let result = path_from_manifest(unsafe_path.to_string());
+
+            assert!(
+                result.is_err(),
+                "unsafe path should be rejected: {unsafe_path}"
+            );
+        }
+    }
+
+    #[test]
+    fn verifies_blobs_before_restore() {
+        let test_root = std::env::temp_dir().join(format!(
+            "kakera-restore-blob-verification-{}",
+            std::process::id()
+        ));
+
+        let source_file = test_root.join("live-save.dat");
+        let blob_directory = test_root.join("blobs");
+
+        let _ = fs::remove_dir_all(&test_root);
+        fs::create_dir_all(&test_root)
+            .expect("the restore verification directory should be created");
+
+        fs::write(&source_file, b"valid save contents").expect("the source save should be written");
+
+        let stored_blob = store_blob(source_file, blob_directory.clone())
+            .expect("the test blob should be stored");
+
+        let snapshot_file = SnapshotFile {
+            location_id: "main-saves".to_string(),
+            relative_path: "save.dat".to_string(),
+            size_bytes: stored_blob.fingerprint.size_bytes,
+            content_hash: stored_blob.fingerprint.content_hash,
+        };
+
+        let verified_path = verified_blob_path(&snapshot_file, blob_directory.clone())
+            .expect("the unchanged blob should pass verification");
+
+        assert_eq!(verified_path, stored_blob.path);
+
+        fs::write(&stored_blob.path, b"corrupted contents")
+            .expect("the stored blob should be modified for the test");
+
+        let corrupted_result = verified_blob_path(&snapshot_file, blob_directory.clone());
+
+        assert!(corrupted_result.is_err());
+
+        let unsafe_snapshot_file = SnapshotFile {
+            content_hash: "../../outside-the-blob-store".to_string(),
+            ..snapshot_file
+        };
+
+        let unsafe_result = verified_blob_path(&unsafe_snapshot_file, blob_directory);
+
+        assert!(unsafe_result.is_err());
+
+        fs::remove_dir_all(test_root)
+            .expect("the restore verification directory should be removed");
+    }
+
+    #[test]
+    fn plans_snapshot_restore_without_writing_live_files() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-restore-plan-{}", std::process::id()));
+
+        let source_directory = test_root.join("source-saves");
+        let source_slot = source_directory.join("slot-1");
+        let destination_directory = test_root.join("restored-saves");
+        let storage_directory = test_root.join("snapshot-store");
+
+        let _ = fs::remove_dir_all(&test_root);
+
+        fs::create_dir_all(&source_slot).expect("the source save directory should be created");
+
+        fs::write(source_directory.join("settings.dat"), b"settings")
+            .expect("the settings save should be written");
+
+        fs::write(source_slot.join("progress.dat"), b"progress")
+            .expect("the progress save should be written");
+
+        let created = create_snapshot(CreateSnapshotRequest {
+            vn_sync_id: "vn-restore-test".to_string(),
+            device_id: "source-device".to_string(),
+            parent_snapshot_id: None,
+            locations: vec![SaveLocation {
+                id: "main-saves".to_string(),
+                path: source_directory.to_string_lossy().into_owned(),
+                label: "Main saves".to_string(),
+            }],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the source snapshot should be created");
+
+        let plan = plan_snapshot_restore(RestoreSnapshotRequest {
+            manifest: created.manifest,
+            locations: vec![SaveLocation {
+                id: "main-saves".to_string(),
+                path: destination_directory.to_string_lossy().into_owned(),
+                label: "Main saves".to_string(),
+            }],
+            storage_directory,
+        })
+        .expect("the restore plan should be created");
+
+        assert_eq!(plan.files.len(), 2);
+
+        assert_eq!(
+            plan.files[0].destination_path,
+            destination_directory.join("settings.dat")
+        );
+
+        assert_eq!(
+            plan.files[1].destination_path,
+            destination_directory.join("slot-1").join("progress.dat")
+        );
+
+        for planned_file in &plan.files {
+            assert!(planned_file.source_blob_path.is_file());
+        }
+
+        assert!(!destination_directory.exists());
+
+        fs::remove_dir_all(test_root).expect("the restore plan test directory should be removed");
     }
 }
