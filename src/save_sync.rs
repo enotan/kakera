@@ -236,6 +236,7 @@ pub struct PlannedRestoreFile {
     pub snapshot_file: SnapshotFile,
     pub source_blob_path: PathBuf,
     pub destination_path: PathBuf,
+    pub destination_state: RestoreDestinationState,
 }
 
 ///describes every filesystem change made by a snapshot restore
@@ -243,6 +244,14 @@ pub struct PlannedRestoreFile {
 pub struct RestorePlan {
     pub snapshot_id: String,
     pub files: Vec<PlannedRestoreFile>,
+}
+
+///describes how a live save file compares with its snapshot version
+#[derive(Debug, Clone, PartialEq)]
+pub enum RestoreDestinationState {
+    Missing,
+    Identical,
+    Different(FileFingerprint),
 }
 
 ///derives a stable ID from the completed manifest contents
@@ -497,6 +506,46 @@ fn destination_path_for_snapshot_file(
     }
 }
 
+///compares a restore destination with its expected snapshot contents
+fn inspect_restore_destination(
+    destination_path: PathBuf,
+    snapshot_file: &SnapshotFile,
+) -> Result<RestoreDestinationState, io::Error> {
+    let metadata = match fs::symlink_metadata(&destination_path) {
+        Ok(metadata) => metadata,
+
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(RestoreDestinationState::Missing);
+        }
+
+        Err(error) => return Err(error),
+    };
+
+    if metadata.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "A restore destination cannot be a symbolic link",
+        ));
+    }
+
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "A restore destination is not a regular file",
+        ));
+    }
+
+    let current_fingerprint = hash_file(destination_path)?;
+
+    if current_fingerprint.size_bytes == snapshot_file.size_bytes
+        && current_fingerprint.content_hash == snapshot_file.content_hash
+    {
+        Ok(RestoreDestinationState::Identical)
+    } else {
+        Ok(RestoreDestinationState::Different(current_fingerprint))
+    }
+}
+
 ///creates and safely persists one complete local save snapshot
 pub fn create_snapshot(request: CreateSnapshotRequest) -> Result<CreatedSnapshot, io::Error> {
     let CreateSnapshotRequest {
@@ -651,10 +700,14 @@ pub fn plan_snapshot_restore(request: RestoreSnapshotRequest) -> Result<RestoreP
 
         let source_blob_path = verified_blob_path(&snapshot_file, blob_directory.clone())?;
 
+        let destination_state =
+            inspect_restore_destination(destination_path.clone(), &snapshot_file)?;
+
         planned_files.push(PlannedRestoreFile {
             snapshot_file,
             source_blob_path,
             destination_path,
+            destination_state,
         });
     }
 
@@ -806,8 +859,9 @@ pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateSnapshotRequest, RestoreSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState,
-        SnapshotFile, SnapshotManifest, collect_location_files, create_snapshot, hash_file,
+        CreateSnapshotRequest, RestoreDestinationState, RestoreSnapshotRequest,
+        SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile, SnapshotManifest,
+        collect_location_files, create_snapshot, hash_file, inspect_restore_destination,
         inspect_save_locations, normalize_relative_path, path_from_manifest, plan_snapshot_restore,
         store_blob, verified_blob_path,
     };
@@ -1269,10 +1323,70 @@ mod tests {
 
         for planned_file in &plan.files {
             assert!(planned_file.source_blob_path.is_file());
+            assert_eq!(
+                planned_file.destination_state,
+                RestoreDestinationState::Missing
+            );
         }
 
         assert!(!destination_directory.exists());
 
         fs::remove_dir_all(test_root).expect("the restore plan test directory should be removed");
+    }
+    #[test]
+    fn classifies_restore_destination_states() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-restore-destination-{}", std::process::id()));
+
+        let expected_file = test_root.join("expected.dat");
+        let destination_file = test_root.join("destination.dat");
+        let expected_contents = b"snapshot save contents";
+
+        let _ = fs::remove_dir_all(&test_root);
+        fs::create_dir_all(&test_root).expect("the destination test directory should be created");
+
+        fs::write(&expected_file, expected_contents)
+            .expect("the expected save file should be written");
+
+        let expected_fingerprint =
+            hash_file(expected_file).expect("the expected save should be hashed");
+
+        let snapshot_file = SnapshotFile {
+            location_id: "main-saves".to_string(),
+            relative_path: "destination.dat".to_string(),
+            size_bytes: expected_fingerprint.size_bytes,
+            content_hash: expected_fingerprint.content_hash,
+        };
+
+        let missing_state = inspect_restore_destination(destination_file.clone(), &snapshot_file)
+            .expect("a missing destination should be inspected");
+
+        assert_eq!(missing_state, RestoreDestinationState::Missing);
+
+        fs::write(&destination_file, expected_contents)
+            .expect("the identical destination should be written");
+
+        let identical_state = inspect_restore_destination(destination_file.clone(), &snapshot_file)
+            .expect("the identical destination should be inspected");
+
+        assert_eq!(identical_state, RestoreDestinationState::Identical);
+
+        fs::write(&destination_file, b"newer live save contents")
+            .expect("the different destination should be written");
+
+        let different_state = inspect_restore_destination(destination_file, &snapshot_file)
+            .expect("the different destination should be inspected");
+
+        match different_state {
+            RestoreDestinationState::Different(current_fingerprint) => {
+                assert_ne!(current_fingerprint.content_hash, snapshot_file.content_hash);
+            }
+
+            other_state => {
+                panic!("expected a different destination, got {other_state:?}");
+            }
+        }
+
+        fs::remove_dir_all(test_root).expect("the destination test directory should be removed");
     }
 }
