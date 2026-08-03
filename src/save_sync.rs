@@ -344,6 +344,94 @@ fn persist_manifest(
     }
 }
 
+///loads and verifies one manifest file from the local snapshot store
+fn load_snapshot_manifest_file(manifest_path: PathBuf) -> Result<SnapshotManifest, io::Error> {
+    let metadata = fs::symlink_metadata(&manifest_path)?;
+
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot manifest is not a regular file",
+        ));
+    }
+
+    let manifest_bytes = fs::read(&manifest_path)?;
+
+    let manifest: SnapshotManifest = serde_json::from_slice(&manifest_bytes)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+    if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "Unsupported snapshot format version {}",
+                manifest.format_version
+            ),
+        ));
+    }
+
+    let expected_snapshot_id = snapshot_id_for_manifest(&manifest)?;
+
+    if expected_snapshot_id != manifest.snapshot_id {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot manifest failed identity verification",
+        ));
+    }
+
+    let expected_file_name = format!("{}.json", manifest.snapshot_id);
+
+    let actual_file_name = manifest_path.file_name().and_then(|name| name.to_str());
+
+    if actual_file_name != Some(&expected_file_name.as_str()) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Snapshot manifest filename does not match its ID",
+        ));
+    }
+
+    chrono::DateTime::parse_from_rfc3339(&manifest.created_at)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+    Ok(manifest)
+}
+
+///lists verified snapshots, starting with the newest first
+pub fn list_local_snapshots(
+    storage_directory: PathBuf,
+) -> Result<Vec<SnapshotManifest>, io::Error> {
+    let manifest_directory = storage_directory.join("manifests");
+
+    let entries = match fs::read_dir(&manifest_directory) {
+        Ok(entries) => entries,
+
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(Vec::new());
+        }
+
+        Err(error) => return Err(error),
+    };
+
+    let mut manifests = Vec::new();
+
+    for entry_result in entries {
+        let entry = entry_result?;
+        let path = entry.path();
+
+        let extension = path.extension().and_then(|value| value.to_str());
+
+        if extension != Some("json") {
+            continue;
+        }
+
+        manifests.push(load_snapshot_manifest_file(path)?);
+    }
+
+    manifests.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+
+    Ok(manifests)
+}
+
 ///converts a portable manifest path into a safe local relative path
 fn path_from_manifest(relative_path: String) -> Result<Option<PathBuf>, io::Error> {
     if relative_path.is_empty() {
@@ -1299,8 +1387,8 @@ mod tests {
         RestoreSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile,
         SnapshotManifest, apply_restore_plan, apply_restore_plan_with_policy,
         collect_location_files, create_snapshot, hash_file, inspect_restore_destination,
-        inspect_save_locations, normalize_relative_path, path_from_manifest, plan_snapshot_restore,
-        store_blob, verified_blob_path,
+        inspect_save_locations, list_local_snapshots, normalize_relative_path, path_from_manifest,
+        plan_snapshot_restore, store_blob, verified_blob_path,
     };
 
     use crate::models::SaveLocation;
@@ -2013,5 +2101,78 @@ mod tests {
             "the backup replacement test directory should be
           removed",
         );
+    }
+
+    #[test]
+    fn lists_local_snapshots_and_rejects_tampering() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-snapshot-catalog-{}", std::process::id()));
+
+        let source_directory = test_root.join("saves");
+        let source_file = source_directory.join("save.dat");
+        let storage_directory = test_root.join("storage");
+
+        let _ = fs::remove_dir_all(&test_root);
+
+        let empty_catalog = list_local_snapshots(storage_directory.clone()).expect(
+            "missing snapshot storage should be an empty
+              catalog",
+        );
+
+        assert!(empty_catalog.is_empty());
+
+        fs::create_dir_all(&source_directory).expect("the source directory should be created");
+
+        fs::write(&source_file, b"first progress").expect("the first save should be written");
+
+        let location = SaveLocation {
+            id: "main-saves".to_string(),
+            path: source_directory.to_string_lossy().into_owned(),
+            label: "Main saves".to_string(),
+        };
+
+        let first = create_snapshot(CreateSnapshotRequest {
+            vn_sync_id: "vn-catalog-test".to_string(),
+            device_id: "test-device".to_string(),
+            parent_snapshot_id: None,
+            locations: vec![location.clone()],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the first snapshot should be created");
+
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        fs::write(&source_file, b"second progress").expect("the second save should be written");
+
+        let second = create_snapshot(CreateSnapshotRequest {
+            vn_sync_id: "vn-catalog-test".to_string(),
+            device_id: "test-device".to_string(),
+            parent_snapshot_id: Some(first.manifest.snapshot_id.clone()),
+            locations: vec![location],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the second snapshot should be created");
+
+        let catalog = list_local_snapshots(storage_directory.clone())
+            .expect("the snapshot catalog should load");
+
+        assert_eq!(catalog.len(), 2);
+        assert_eq!(catalog[0].snapshot_id, second.manifest.snapshot_id);
+        assert_eq!(catalog[1].snapshot_id, first.manifest.snapshot_id);
+
+        let mut tampered_manifest = first.manifest;
+        tampered_manifest.device_id = "tampered-device".to_string();
+
+        let tampered_json = serde_json::to_vec_pretty(&tampered_manifest)
+            .expect("the tampered manifest should serialize");
+
+        fs::write(first.manifest_path, tampered_json)
+            .expect("the manifest should be tampered with");
+
+        let tampered_catalog = list_local_snapshots(storage_directory);
+
+        assert!(tampered_catalog.is_err());
+
+        fs::remove_dir_all(test_root).expect("the catalog test directory should be removed");
     }
 }
