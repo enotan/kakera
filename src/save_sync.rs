@@ -57,6 +57,14 @@ struct DiscoveredSaveFile {
     source_path: PathBuf,
 }
 
+///records the live file fingerprint that a recovery snapshot must preserve
+#[derive(Debug, Clone, PartialEq)]
+struct RestoreConflictEvidence {
+    location_id: String,
+    relative_path: String,
+    live_fingerprint: FileFingerprint,
+}
+
 const HASH_BUFFER_SIZE: usize = 64 * 1024;
 
 ///calculates the blake3 hash and byte size of one file
@@ -252,6 +260,23 @@ pub struct AppliedRestore {
     pub snapshot_id: String,
     pub restored_file_count: usize,
     pub skipped_identical_count: usize,
+    pub backup_snapshot_id: Option<String>,
+}
+
+///information required to snapshot live saves before replacing conflicts
+#[derive(Debug, Clone, PartialEq)]
+pub struct RestoreBackupConfig {
+    pub vn_sync_id: String,
+    pub device_id: String,
+    pub locations: Vec<SaveLocation>,
+    pub storage_directory: PathBuf,
+}
+
+///controls how an applied restore handles different live save files
+#[derive(Debug, Clone, PartialEq)]
+pub enum RestoreConflictPolicy {
+    Reject,
+    BackupAndReplace(RestoreBackupConfig),
 }
 
 ///describes how a live save file compares with its snapshot version
@@ -815,11 +840,9 @@ fn apply_planned_restore_file(planned_file: &PlannedRestoreFile) -> Result<bool,
     }
 }
 
-///applies a conflict-free restore plan
-pub fn apply_restore_plan(plan: RestorePlan) -> Result<AppliedRestore, io::Error> {
-    let RestorePlan { snapshot_id, files } = plan;
-
-    for planned_file in &files {
+///verifies every source blob before an applied restore begins
+fn verify_restore_plan_sources(files: &[PlannedRestoreFile]) -> Result<(), io::Error> {
+    for planned_file in files {
         let source_metadata = fs::symlink_metadata(&planned_file.source_blob_path)?;
 
         if !source_metadata.file_type().is_file() {
@@ -839,7 +862,18 @@ pub fn apply_restore_plan(plan: RestorePlan) -> Result<AppliedRestore, io::Error
                 "Restore source blob failed preflight verification",
             ));
         }
+    }
 
+    Ok(())
+}
+
+///applies a conflict-free restore plan
+pub fn apply_restore_plan(plan: RestorePlan) -> Result<AppliedRestore, io::Error> {
+    let RestorePlan { snapshot_id, files } = plan;
+
+    verify_restore_plan_sources(&files)?;
+
+    for planned_file in &files {
         let current_state = inspect_restore_destination(
             planned_file.destination_path.clone(),
             &planned_file.snapshot_file,
@@ -871,7 +905,254 @@ pub fn apply_restore_plan(plan: RestorePlan) -> Result<AppliedRestore, io::Error
         snapshot_id,
         restored_file_count,
         skipped_identical_count,
+        backup_snapshot_id: None,
     })
+}
+
+///applies a restore using an explicit conflict policy
+pub fn apply_restore_plan_with_policy(
+    plan: RestorePlan,
+    policy: RestoreConflictPolicy,
+) -> Result<AppliedRestore, io::Error> {
+    match policy {
+        RestoreConflictPolicy::Reject => apply_restore_plan(plan),
+
+        RestoreConflictPolicy::BackupAndReplace(config) => {
+            verify_restore_plan_sources(&plan.files)?;
+
+            let backup = create_restore_backup_if_needed(&plan.files, &config)?;
+
+            let backup = match backup {
+                Some(backup) => backup,
+                None => return apply_restore_plan(plan),
+            };
+
+            let backup_snapshot_id = backup.manifest.snapshot_id.clone();
+
+            let RestorePlan { snapshot_id, files } = plan;
+            let mut restored_file_count = 0;
+            let mut skipped_identical_count = 0;
+
+            for planned_file in &files {
+                if replace_planned_restore_file(planned_file, &backup.manifest)? {
+                    restored_file_count += 1;
+                } else {
+                    skipped_identical_count += 1;
+                }
+            }
+
+            Ok(AppliedRestore {
+                snapshot_id,
+                restored_file_count,
+                skipped_identical_count,
+                backup_snapshot_id: (Some(backup_snapshot_id)),
+            })
+        }
+    }
+}
+
+///creates and verifies a recovery snapshot when live conflicts exist
+fn create_restore_backup_if_needed(
+    files: &[PlannedRestoreFile],
+    config: &RestoreBackupConfig,
+) -> Result<Option<CreatedSnapshot>, io::Error> {
+    let mut conflicts = Vec::new();
+
+    for planned_file in files {
+        let current_state = inspect_restore_destination(
+            planned_file.destination_path.clone(),
+            &planned_file.snapshot_file,
+        )?;
+
+        if let RestoreDestinationState::Different(live_fingerprint) = current_state {
+            conflicts.push(RestoreConflictEvidence {
+                location_id: planned_file.snapshot_file.location_id.clone(),
+                relative_path: planned_file.snapshot_file.relative_path.clone(),
+                live_fingerprint,
+            });
+        }
+    }
+
+    if conflicts.is_empty() {
+        return Ok(None);
+    }
+
+    let mut existing_locations = Vec::new();
+
+    for status in inspect_save_locations(config.locations.clone()) {
+        match status.state {
+            SaveLocationState::File | SaveLocationState::Directory => {
+                existing_locations.push(status.location);
+            }
+
+            SaveLocationState::Missing => {}
+
+            SaveLocationState::Unreadable(message) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    format!("Cannot back up {}: {message}", status.location.label),
+                ));
+            }
+
+            SaveLocationState::Unsupported => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Cannot back up unspported location {}",
+                        status.location.label
+                    ),
+                ));
+            }
+        }
+    }
+
+    if existing_locations.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Conflicting saves exist but no backup locations are available",
+        ));
+    }
+
+    let backup = create_snapshot(CreateSnapshotRequest {
+        vn_sync_id: config.vn_sync_id.clone(),
+        device_id: config.device_id.clone(),
+        parent_snapshot_id: None,
+        locations: existing_locations,
+        storage_directory: config.storage_directory.clone(),
+    })?;
+
+    for conflict in conflicts {
+        let mut verified = false;
+
+        for backup_file in &backup.manifest.files {
+            if backup_file.location_id == conflict.location_id
+                && backup_file.relative_path == conflict.relative_path
+            {
+                if backup_file.size_bytes != conflict.live_fingerprint.size_bytes
+                    || backup_file.content_hash != conflict.live_fingerprint.content_hash
+                {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Live save changed while its backup was being created",
+                    ));
+                }
+
+                verified = true;
+                break;
+            }
+        }
+
+        if !verified {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Recovery snapshot is missing {}/{}",
+                    conflict.location_id, conflict.relative_path
+                ),
+            ));
+        }
+    }
+
+    Ok(Some(backup))
+}
+
+///replaces one conflict after another, verifiying its recovery backup
+fn replace_planned_restore_file(
+    planned_file: &PlannedRestoreFile,
+    backup_manifest: &SnapshotManifest,
+) -> Result<bool, io::Error> {
+    let current_state = inspect_restore_destination(
+        planned_file.destination_path.clone(),
+        &planned_file.snapshot_file,
+    )?;
+
+    match current_state {
+        RestoreDestinationState::Missing => {
+            return apply_planned_restore_file(planned_file);
+        }
+
+        RestoreDestinationState::Identical => {
+            return Ok(false);
+        }
+
+        RestoreDestinationState::Different(current_fingerprint) => {
+            let mut backed_up_fingerprint: Option<FileFingerprint> = None;
+
+            for backup_file in &backup_manifest.files {
+                if backup_file.location_id == planned_file.snapshot_file.location_id
+                    && backup_file.relative_path == planned_file.snapshot_file.relative_path
+                {
+                    backed_up_fingerprint = Some(FileFingerprint {
+                        size_bytes: backup_file.size_bytes,
+                        content_hash: backup_file.content_hash.clone(),
+                    });
+                    break;
+                }
+            }
+
+            let backed_up_fingerprint = match backed_up_fingerprint {
+                Some(fingerprint) => fingerprint,
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Recovery snapshot does not contain the conflicting save",
+                    ));
+                }
+            };
+
+            if current_fingerprint != backed_up_fingerprint {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Live save changed after its recovery backup was created",
+                ));
+            }
+        }
+    }
+
+    let parent_directory = match planned_file.destination_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+
+        _ => PathBuf::from("."),
+    };
+
+    let parent_metadata = fs::symlink_metadata(&parent_directory)?;
+
+    if parent_metadata.file_type().is_symlink() || !parent_metadata.file_type().is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Restore destination parent is not a safe directory",
+        ));
+    }
+
+    let source_metadata = fs::symlink_metadata(&planned_file.source_blob_path)?;
+
+    if !source_metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Restore source blob is not a regular file",
+        ));
+    }
+
+    let mut temporary_file = tempfile::NamedTempFile::new_in(&parent_directory)?;
+
+    let copied_fingerprint = copy_and_hash_file(
+        planned_file.source_blob_path.clone(),
+        temporary_file.as_file_mut(),
+    )?;
+
+    if copied_fingerprint.size_bytes != planned_file.snapshot_file.size_bytes
+        || copied_fingerprint.content_hash != planned_file.snapshot_file.content_hash
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Restore source changed while it was being copied",
+        ));
+    }
+
+    match temporary_file.persist(&planned_file.destination_path) {
+        Ok(_) => Ok(true),
+        Err(error) => Err(error.error),
+    }
 }
 
 ///inspects one configured save location without modifying it
@@ -1014,11 +1295,12 @@ pub fn collect_location_files(location: SaveLocation) -> Result<Vec<SnapshotFile
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateSnapshotRequest, RestoreDestinationState, RestoreSnapshotRequest,
-        SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile, SnapshotManifest,
-        apply_restore_plan, collect_location_files, create_snapshot, hash_file,
-        inspect_restore_destination, inspect_save_locations, normalize_relative_path,
-        path_from_manifest, plan_snapshot_restore, store_blob, verified_blob_path,
+        CreateSnapshotRequest, RestoreBackupConfig, RestoreConflictPolicy, RestoreDestinationState,
+        RestoreSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile,
+        SnapshotManifest, apply_restore_plan, apply_restore_plan_with_policy,
+        collect_location_files, create_snapshot, hash_file, inspect_restore_destination,
+        inspect_save_locations, normalize_relative_path, path_from_manifest, plan_snapshot_restore,
+        store_blob, verified_blob_path,
     };
 
     use crate::models::SaveLocation;
@@ -1317,7 +1599,7 @@ mod tests {
         let saved_manifest: SnapshotManifest = serde_json::from_slice(&saved_manifest_bytes)
             .expect(
                 "the persisted manifest should contain valid
-              JSON",
+             JSON",
             );
 
         assert_eq!(saved_manifest, created.manifest);
@@ -1629,5 +1911,107 @@ mod tests {
         );
 
         fs::remove_dir_all(test_root).expect("the apply restore test directory should be removed");
+    }
+
+    #[test]
+    fn backs_up_and_replaces_conflicting_live_saves() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-backup-replace-{}", std::process::id()));
+
+        let source_directory = test_root.join("source");
+        let destination_directory = test_root.join("destination");
+        let storage_directory = test_root.join("storage");
+
+        let source_file = source_directory.join("save.dat");
+        let destination_file = destination_directory.join("save.dat");
+
+        let _ = fs::remove_dir_all(&test_root);
+
+        fs::create_dir_all(&source_directory).expect("the source directory should be created");
+
+        fs::create_dir_all(&destination_directory)
+            .expect("the destination directory should be created");
+
+        fs::write(&source_file, b"snapshot progress")
+            .expect("the snapshot source should be written");
+
+        let snapshot = create_snapshot(CreateSnapshotRequest {
+            vn_sync_id: "vn-backup-test".to_string(),
+            device_id: "remote-device".to_string(),
+            parent_snapshot_id: None,
+            locations: vec![SaveLocation {
+                id: "main-saves".to_string(),
+                path: source_directory.to_string_lossy().into_owned(),
+                label: "Main saves".to_string(),
+            }],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the remote snapshot should be created");
+
+        fs::write(&destination_file, b"newer live progress")
+            .expect("the conflicting live save should be written");
+
+        let local_location = SaveLocation {
+            id: "main-saves".to_string(),
+            path: destination_directory.to_string_lossy().into_owned(),
+            label: "Main saves".to_string(),
+        };
+
+        let plan = plan_snapshot_restore(RestoreSnapshotRequest {
+            manifest: snapshot.manifest,
+            locations: vec![local_location.clone()],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the conflicting restore should be planned");
+
+        let applied = apply_restore_plan_with_policy(
+            plan,
+            RestoreConflictPolicy::BackupAndReplace(RestoreBackupConfig {
+                vn_sync_id: "vn-backup-test".to_string(),
+                device_id: "local-device".to_string(),
+                locations: vec![local_location],
+                storage_directory: storage_directory.clone(),
+            }),
+        )
+        .expect("the conflicting restore should be backed up and applied");
+
+        assert_eq!(applied.restored_file_count, 1);
+        assert_eq!(applied.skipped_identical_count, 0);
+
+        assert_eq!(
+            fs::read(&destination_file).expect("the replaced live save should be readable"),
+            b"snapshot progress"
+        );
+
+        let backup_snapshot_id = applied
+            .backup_snapshot_id
+            .expect("a recovery snapshot ID should be returned");
+
+        let backup_manifest_path = storage_directory
+            .join("manifests")
+            .join(format!("{backup_snapshot_id}.json"));
+
+        let backup_manifest_bytes =
+            fs::read(backup_manifest_path).expect("the recovery manifest should be readable");
+
+        let backup_manifest: SnapshotManifest = serde_json::from_slice(&backup_manifest_bytes)
+            .expect("the recovery manifest should contain valid JSON");
+
+        assert_eq!(backup_manifest.files.len(), 1);
+
+        let backup_file = &backup_manifest.files[0];
+        let backup_blob_path = storage_directory
+            .join("blobs")
+            .join(format!("{}.blob", backup_file.content_hash));
+
+        assert_eq!(
+            fs::read(backup_blob_path).expect("the recovery blob should be readable"),
+            b"newer live progress"
+        );
+
+        fs::remove_dir_all(test_root).expect(
+            "the backup replacement test directory should be
+          removed",
+        );
     }
 }
