@@ -1232,6 +1232,12 @@ fn App() -> Element {
                                                 );
                                             },
 
+                                            on_save_sync_change: move |(id, save_sync): (u64, SaveSyncConfig)| {
+                                                update_vn_and_save(&mut vns, id, move |vn| {
+                                                    vn.save_sync = save_sync;
+                                                }, "Could not save sync settings".to_string());
+                                            },
+
                                             //when refreshing cover
                                             on_cover_refresh: move |id| {
                                                 let vn = vns

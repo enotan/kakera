@@ -1,15 +1,18 @@
-use crate::models::{LaunchMode, StoryRoute, VisualNovel};
+use crate::models::{LaunchMode, SaveLocation, SaveSyncConfig, StoryRoute, VisualNovel};
+use crate::update_vn_and_save;
 use crate::views::library::cover_source;
 use crate::vn_markup::{DescriptionPart, parse_description};
 use crate::wine::{ProtonRunner, SteamPrefix, WineRunner};
 use dioxus::prelude::*;
 use rfd::FileDialog;
+use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq)]
 enum DetailTab {
     Info,
     Launch,
     Routes,
     History,
+    Sync,
 }
 ///displays details for one selected vn
 #[component]
@@ -41,6 +44,7 @@ pub fn DetailView(
     on_cover_refresh: EventHandler<u64>,
     on_active_route_change: EventHandler<(u64, Option<String>)>,
     on_route_delete: EventHandler<(u64, String)>,
+    on_save_sync_change: EventHandler<(u64, SaveSyncConfig)>,
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
@@ -174,6 +178,14 @@ pub fn DetailView(
                             active_tab.set(DetailTab::History);
                         },
                         "History"
+                    }
+
+                    button {
+                        class: if selected_tab == DetailTab::Sync { "detail-tab active" } else { "detail-tab" },
+                        onclick: move |_| {
+                            active_tab.set(DetailTab::Sync);
+                        },
+                        "Sync"
                     }
                 }
 
@@ -752,6 +764,13 @@ pub fn DetailView(
                         }
                     }
                 }
+                if selected_tab == DetailTab::Sync {
+                    SaveSyncSettings {
+                        vn_id: vn.id,
+                        config: vn.save_sync.clone(),
+                        on_change: on_save_sync_change,
+                    }
+                }
             }
             div { class: "detail-launch-footer",
                 if vn.launch_mode != LaunchMode::Native {
@@ -781,6 +800,220 @@ pub fn DetailView(
         }
     }
 }
+
+///displays and updates automatic save snapshot settings
+#[component]
+fn SaveSyncSettings(
+    vn_id: u64,
+    config: SaveSyncConfig,
+    on_change: EventHandler<(u64, SaveSyncConfig)>,
+) -> Element {
+    let enabled_config = config.clone();
+    let before_launch_config = config.clone();
+    let after_exit_config = config.clone();
+    let backup_config = config.clone();
+    let folder_config = config.clone();
+    let file_config = config.clone();
+
+    let mut location_message = use_signal(|| None::<String>);
+    let current_location_message = location_message.read().clone();
+
+    rsx! {
+        h3 { "Save sync" }
+
+        p { class: "sync-description",
+    "Create portable snapshots of this visual novel's save data."
+        }
+
+        label { class: "sync-setting-row",
+            div {
+                strong { "Enable save sync" }
+                span { "Track configured save locations for this VN" }
+            }
+
+            input {
+                class: "setting-checkbox",
+                r#type: "checkbox",
+                checked: config.enabled,
+                onchange: move |event| {
+                    let mut updated_config = enabled_config.clone();
+                    updated_config.enabled = event.checked();
+                    on_change.call((vn_id, updated_config));
+                },
+            }
+        }
+
+        label { class: "sync-setting-row",
+            div {
+                strong { "Snapshot before launch" }
+                span { "Preserve the current saves before starting the vn." }
+            }
+
+            input {
+                class: "setting-checkbox",
+                r#type: "checkbox",
+                checked: config.snapshot_before_launch,
+                disabled: !config.enabled,
+                onchange: move |event| {
+                    let mut updated_config = before_launch_config.clone();
+                    updated_config.snapshot_before_launch = event.checked();
+                    on_change.call((vn_id, updated_config));
+                },
+            }
+        }
+
+        label { class: "sync-setting-row",
+            div {
+                strong { "Snapshot after exit" }
+                span { "Capture changed saves when the vn closes" }
+            }
+
+            input {
+                class: "setting-checkbox",
+                r#type: "checkbox",
+                checked: config.snapshot_after_exit,
+                disabled: !config.enabled,
+                onchange: move |event| {
+                    let mut updated_config = after_exit_config.clone();
+                    updated_config.snapshot_after_exit = event.checked();
+                    on_change.call((vn_id, updated_config));
+                },
+            }
+        }
+
+        label { class: "sync-setting-row",
+            div {
+                strong { "Back up before restore" }
+                span { "Keep replaced files in a recovery snapshot" }
+            }
+
+            input {
+                class: "setting-checkbox",
+                r#type: "checkbox",
+                checked: config.backup_before_restore,
+                disabled: !config.enabled,
+                onchange: move |event| {
+                    let mut updated_config = backup_config.clone();
+                    updated_config.backup_before_restore = event.checked();
+                    on_change.call((vn_id, updated_config));
+                },
+            }
+        }
+
+        h3 { "Save locations" }
+
+        div { class: "sync-location-list",
+            if config.locations.is_empty() {
+                p { class: "sync-location-empty",
+                    "No save locations configured yet"
+                }
+            }
+
+            for location in config.locations.clone() {
+                {
+                    let location_id = location.id.clone();
+                    let remove_config = config.clone();
+
+                    rsx! {
+                        div { class: "sync-location-row",
+                            div { class: "sync-location-details",
+                                strong { "{location.label}" }
+                                span { title: "{location.path}",
+                                "{location.path}" }
+                            }
+
+                            button {
+                                class: "sync-location-remove",
+                                title: "Remove save location",
+                                onclick: move |_| {
+                                    let mut updated_config = remove_config.clone();
+
+                                    updated_config.locations.retain(|location| location.id != location_id);
+
+                                    on_change.call((vn_id, updated_config));
+                                },
+                                "×"
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(message) = current_location_message {
+                p { class: "field-error", "{message}" }
+            }
+
+            div { class: "sync-location-actions",
+                button {
+                    onclick: move |_| {
+                        let picked_folder = FileDialog::new().pick_folder();
+
+                        if let Some(path) = picked_folder {
+                            match config_with_save_location(folder_config.clone(), path) {
+                                Some(updated_config) => {
+                                    location_message.set(None);
+                                    on_change.call((vn_id, updated_config));
+                                }
+                                None => {
+                                    location_message.set(Some("That save location is already configured".to_string()));
+                                }
+                            }
+                        }
+                    },
+                    "Add folder"
+                }
+
+                button {
+                    onclick: move |_| {
+                        let picked_file = FileDialog::new().pick_file();
+
+                        if let Some(path) = picked_file {
+                            match config_with_save_location(file_config.clone(), path) {
+                                Some(updated_config) => {
+                                    location_message.set(None);
+                                    on_change.call((vn_id, updated_config));
+                                }
+                                None => {
+                                    location_message.set(Some("That save location is already configured".to_string()));
+                                }
+                            }
+                        }
+                    },
+                    "Add file"
+                }
+            }
+        }
+    }
+}
+
+///adds a unique file or directory to a save sync configuration
+fn config_with_save_location(mut config: SaveSyncConfig, path: PathBuf) -> Option<SaveSyncConfig> {
+    let path_text = path.to_string_lossy().to_string();
+
+    if config
+        .locations
+        .iter()
+        .any(|location| location.path == path_text)
+    {
+        return None;
+    }
+
+    let label = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| path_text.clone());
+
+    let location_id = format!("location-{}", blake3::hash(path_text.as_bytes()).to_hex());
+
+    config.locations.push(SaveLocation {
+        id: location_id,
+        path: path_text,
+        label,
+    });
+
+    Some(config)
+}
+
 fn format_started_at(started_at: String) -> String {
     let parsed_time = match chrono::DateTime::parse_from_rfc3339(&started_at) {
         Ok(time) => time,
