@@ -246,6 +246,14 @@ pub struct RestorePlan {
     pub files: Vec<PlannedRestoreFile>,
 }
 
+///summarises a successfully applied restore plan
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppliedRestore {
+    pub snapshot_id: String,
+    pub restored_file_count: usize,
+    pub skipped_identical_count: usize,
+}
+
 ///describes how a live save file compares with its snapshot version
 #[derive(Debug, Clone, PartialEq)]
 pub enum RestoreDestinationState {
@@ -719,6 +727,153 @@ pub fn plan_snapshot_restore(request: RestoreSnapshotRequest) -> Result<RestoreP
     })
 }
 
+///applies one planned file without overwriting a conflicting live save, returns true when a file
+///is written and false if its identical
+fn apply_planned_restore_file(planned_file: &PlannedRestoreFile) -> Result<bool, io::Error> {
+    let parent_directory = match planned_file.destination_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+
+    fs::create_dir_all(&parent_directory)?;
+
+    let parent_metadata = fs::symlink_metadata(&parent_directory)?;
+
+    if parent_metadata.file_type().is_symlink() || !parent_metadata.file_type().is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Restore destination parent is not a safe directory",
+        ));
+    }
+
+    match inspect_restore_destination(
+        planned_file.destination_path.clone(),
+        &planned_file.snapshot_file,
+    )? {
+        RestoreDestinationState::Missing => {}
+
+        RestoreDestinationState::Identical => {
+            return Ok(false);
+        }
+
+        RestoreDestinationState::Different(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!(
+                    "Restore would overwrite a different live safe: {}",
+                    planned_file.destination_path.display()
+                ),
+            ));
+        }
+    }
+
+    let source_metadata = fs::symlink_metadata(&planned_file.source_blob_path)?;
+
+    if !source_metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Restore source blob is not a regular file",
+        ));
+    }
+
+    let mut temporary_file = tempfile::NamedTempFile::new_in(&parent_directory)?;
+
+    let copied_fingerprint = copy_and_hash_file(
+        planned_file.source_blob_path.clone(),
+        temporary_file.as_file_mut(),
+    )?;
+
+    if copied_fingerprint.size_bytes != planned_file.snapshot_file.size_bytes
+        || copied_fingerprint.content_hash != planned_file.snapshot_file.content_hash
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Restore source changed while it was being copied",
+        ));
+    }
+
+    match temporary_file.persist_noclobber(&planned_file.destination_path) {
+        Ok(_) => Ok(true),
+
+        Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
+            let current_state = inspect_restore_destination(
+                planned_file.destination_path.clone(),
+                &planned_file.snapshot_file,
+            )?;
+
+            if current_state == RestoreDestinationState::Identical {
+                Ok(false)
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "Restore destination changed during the operation",
+                ))
+            }
+        }
+
+        Err(error) => Err(error.error),
+    }
+}
+
+///applies a conflict-free restore plan
+pub fn apply_restore_plan(plan: RestorePlan) -> Result<AppliedRestore, io::Error> {
+    let RestorePlan { snapshot_id, files } = plan;
+
+    for planned_file in &files {
+        let source_metadata = fs::symlink_metadata(&planned_file.source_blob_path)?;
+
+        if !source_metadata.file_type().is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Restore source blob is not a regular file",
+            ));
+        }
+
+        let source_fingerprint = hash_file(planned_file.source_blob_path.clone())?;
+
+        if source_fingerprint.size_bytes != planned_file.snapshot_file.size_bytes
+            || source_fingerprint.content_hash != planned_file.snapshot_file.content_hash
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Restore source blob failed preflight verification",
+            ));
+        }
+
+        let current_state = inspect_restore_destination(
+            planned_file.destination_path.clone(),
+            &planned_file.snapshot_file,
+        )?;
+
+        if let RestoreDestinationState::Different(_) = current_state {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!(
+                    "Restore requires a bakcup before replacing {}",
+                    planned_file.destination_path.display()
+                ),
+            ));
+        }
+    }
+
+    let mut restored_file_count = 0;
+    let mut skipped_identical_count = 0;
+
+    for planned_file in &files {
+        if apply_planned_restore_file(planned_file)? {
+            restored_file_count += 1;
+        } else {
+            skipped_identical_count += 1;
+        }
+    }
+
+    Ok(AppliedRestore {
+        snapshot_id,
+        restored_file_count,
+        skipped_identical_count,
+    })
+}
+
 ///inspects one configured save location without modifying it
 pub fn inspect_save_location(location: SaveLocation) -> SaveLocationStatus {
     let state = match std::fs::metadata(&location.path) {
@@ -861,9 +1016,9 @@ mod tests {
     use super::{
         CreateSnapshotRequest, RestoreDestinationState, RestoreSnapshotRequest,
         SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile, SnapshotManifest,
-        collect_location_files, create_snapshot, hash_file, inspect_restore_destination,
-        inspect_save_locations, normalize_relative_path, path_from_manifest, plan_snapshot_restore,
-        store_blob, verified_blob_path,
+        apply_restore_plan, collect_location_files, create_snapshot, hash_file,
+        inspect_restore_destination, inspect_save_locations, normalize_relative_path,
+        path_from_manifest, plan_snapshot_restore, store_blob, verified_blob_path,
     };
 
     use crate::models::SaveLocation;
@@ -1388,5 +1543,91 @@ mod tests {
         }
 
         fs::remove_dir_all(test_root).expect("the destination test directory should be removed");
+    }
+
+    #[test]
+    fn applies_retries_and_refuses_conflicting_restores() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-apply-restore-{}", std::process::id()));
+
+        let source_directory = test_root.join("source");
+        let destination_directory = test_root.join("destination");
+        let storage_directory = test_root.join("storage");
+        let source_file = source_directory.join("save.dat");
+        let destination_file = destination_directory.join("save.dat");
+
+        let _ = fs::remove_dir_all(&test_root);
+        fs::create_dir_all(&source_directory).expect("the source directory should be created");
+
+        fs::write(&source_file, b"snapshot progress").expect("the source save should be written");
+
+        let created = create_snapshot(CreateSnapshotRequest {
+            vn_sync_id: "vn-apply-test".to_string(),
+            device_id: "source-device".to_string(),
+            parent_snapshot_id: None,
+            locations: vec![SaveLocation {
+                id: "main-saves".to_string(),
+                path: source_directory.to_string_lossy().into_owned(),
+                label: "Main saves".to_string(),
+            }],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the snapshot should be created");
+
+        let restore_location = SaveLocation {
+            id: "main-saves".to_string(),
+            path: destination_directory.to_string_lossy().into_owned(),
+            label: "Main saves".to_string(),
+        };
+
+        let first_plan = plan_snapshot_restore(RestoreSnapshotRequest {
+            manifest: created.manifest.clone(),
+            locations: vec![restore_location.clone()],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the first restore should be planned");
+
+        let first_result =
+            apply_restore_plan(first_plan).expect("the first restore should be applied");
+
+        assert_eq!(first_result.restored_file_count, 1);
+        assert_eq!(first_result.skipped_identical_count, 0);
+        assert_eq!(
+            fs::read(&destination_file).expect("the restored save should be readable"),
+            b"snapshot progress"
+        );
+
+        let retry_plan = plan_snapshot_restore(RestoreSnapshotRequest {
+            manifest: created.manifest.clone(),
+            locations: vec![restore_location.clone()],
+            storage_directory: storage_directory.clone(),
+        })
+        .expect("the retry should be planned");
+
+        let retry_result = apply_restore_plan(retry_plan).expect("the retry should safely succeed");
+
+        assert_eq!(retry_result.restored_file_count, 0);
+        assert_eq!(retry_result.skipped_identical_count, 1);
+
+        fs::write(&destination_file, b"newer live progress")
+            .expect("the live save should be changed");
+
+        let conflict_plan = plan_snapshot_restore(RestoreSnapshotRequest {
+            manifest: created.manifest,
+            locations: vec![restore_location],
+            storage_directory,
+        })
+        .expect("the conflicting restore should still be planned");
+
+        let conflict_result = apply_restore_plan(conflict_plan);
+
+        assert!(conflict_result.is_err());
+
+        assert_eq!(
+            fs::read(&destination_file).expect("the conflicting save should remain readable"),
+            b"newer live progress"
+        );
+
+        fs::remove_dir_all(test_root).expect("the apply restore test directory should be removed");
     }
 }
