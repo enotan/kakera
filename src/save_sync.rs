@@ -66,6 +66,75 @@ struct RestoreConflictEvidence {
 }
 
 const HASH_BUFFER_SIZE: usize = 64 * 1024;
+const DEVICE_ID_FILE_NAME: &str = "device-id";
+
+///loads this kakera install's id or creates it on first time usage
+pub fn load_or_create_device_id(storage_directory: PathBuf) -> Result<String, io::Error> {
+    fs::create_dir_all(&storage_directory)?;
+
+    let identity_path = storage_directory.join(DEVICE_ID_FILE_NAME);
+
+    match fs::read_to_string(&identity_path) {
+        Ok(identity) => validate_device_id(identity),
+
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            create_device_id(identity_path, storage_directory)
+        }
+
+        Err(error) => Err(error),
+    }
+}
+
+fn create_device_id(
+    identity_path: PathBuf,
+    storage_directory: PathBuf,
+) -> Result<String, io::Error> {
+    let timestamp = chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default();
+
+    let seed = format!(
+        "{timestamp}:{}:{}",
+        std::process::id(),
+        storage_directory.display()
+    );
+
+    let identity = format!("device-{}", blake3::hash(seed.as_bytes()).to_hex());
+
+    let mut temp_file = tempfile::NamedTempFile::new_in(&storage_directory)?;
+    temp_file.write_all(identity.as_bytes())?;
+    temp_file.as_file_mut().sync_all()?;
+
+    match temp_file.persist_noclobber(&identity_path) {
+        Ok(_) => Ok(identity),
+
+        Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
+            let existing_identity = fs::read_to_string(identity_path)?;
+            validate_device_id(existing_identity)
+        }
+
+        Err(error) => Err(error.error),
+    }
+}
+
+fn validate_device_id(id: String) -> Result<String, io::Error> {
+    let trimmed_id = id.trim().to_string();
+    let hash = trimmed_id.strip_prefix("device-");
+
+    let is_valid = match hash {
+        Some(hash) => {
+            hash.len() == 64 && hash.chars().all(|character| character.is_ascii_hexdigit())
+        }
+        None => false,
+    };
+
+    if !is_valid {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The save sync device id is invalid",
+        ));
+    }
+
+    Ok(trimmed_id)
+}
 
 ///calculates the blake3 hash and byte size of one file
 pub fn hash_file(path: PathBuf) -> Result<FileFingerprint, io::Error> {
@@ -665,6 +734,32 @@ fn inspect_restore_destination(
     } else {
         Ok(RestoreDestinationState::Different(current_fingerprint))
     }
+}
+
+///creates a local snapshot for one vn
+pub fn create_local_snapshot_for_vn(
+    vn_id: u64,
+    locations: Vec<SaveLocation>,
+    kakera_data_dir: PathBuf,
+) -> Result<CreatedSnapshot, io::Error> {
+    let sync_root = kakera_data_dir.join("save-sync");
+    let storage_directory = sync_root.join("vns").join(format!("vn-{vn_id}"));
+
+    let device_id = load_or_create_device_id(sync_root)?;
+
+    let existing_snapshots = list_local_snapshots(storage_directory.clone())?;
+
+    let parent_snapshot_id = existing_snapshots
+        .first()
+        .map(|manifest| manifest.snapshot_id.clone());
+
+    create_snapshot(CreateSnapshotRequest {
+        vn_sync_id: format!("vn-{vn_id}"),
+        device_id,
+        parent_snapshot_id,
+        locations,
+        storage_directory,
+    })
 }
 
 ///creates and safely persists one complete local save snapshot
@@ -1387,8 +1482,9 @@ mod tests {
         RestoreSnapshotRequest, SNAPSHOT_FORMAT_VERSION, SaveLocationState, SnapshotFile,
         SnapshotManifest, apply_restore_plan, apply_restore_plan_with_policy,
         collect_location_files, create_snapshot, hash_file, inspect_restore_destination,
-        inspect_save_locations, list_local_snapshots, normalize_relative_path, path_from_manifest,
-        plan_snapshot_restore, store_blob, verified_blob_path,
+        inspect_save_locations, list_local_snapshots, load_or_create_device_id,
+        normalize_relative_path, path_from_manifest, plan_snapshot_restore, store_blob,
+        verified_blob_path,
     };
 
     use crate::models::SaveLocation;
@@ -2174,5 +2270,24 @@ mod tests {
         assert!(tampered_catalog.is_err());
 
         fs::remove_dir_all(test_root).expect("the catalog test directory should be removed");
+    }
+
+    #[test]
+    fn creates_and_reuses_one_device_id() {
+        let test_root =
+            std::env::temp_dir().join(format!("kakera-device-id-{}", std::process::id()));
+
+        let _ = fs::remove_dir_all(&test_root);
+
+        let first_id = load_or_create_device_id(test_root.clone())
+            .expect("the first device id should be created");
+
+        let second_id = load_or_create_device_id(test_root.clone())
+            .expect("the stored device id should be loaded");
+
+        assert_eq!(first_id, second_id);
+        assert!(first_id.starts_with("device-"));
+
+        let _ = fs::remove_dir_all(test_root);
     }
 }

@@ -45,6 +45,7 @@ pub fn DetailView(
     on_active_route_change: EventHandler<(u64, Option<String>)>,
     on_route_delete: EventHandler<(u64, String)>,
     on_save_sync_change: EventHandler<(u64, SaveSyncConfig)>,
+    on_create_snapshot: EventHandler<u64>,
 ) -> Element {
     let mut new_route_name = use_signal(String::new);
     let typed_route_name = new_route_name.read().clone();
@@ -769,6 +770,7 @@ pub fn DetailView(
                         vn_id: vn.id,
                         config: vn.save_sync.clone(),
                         on_change: on_save_sync_change,
+                        on_create_snapshot,
                     }
                 }
             }
@@ -807,6 +809,7 @@ fn SaveSyncSettings(
     vn_id: u64,
     config: SaveSyncConfig,
     on_change: EventHandler<(u64, SaveSyncConfig)>,
+    on_create_snapshot: EventHandler<u64>,
 ) -> Element {
     let enabled_config = config.clone();
     let before_launch_config = config.clone();
@@ -981,6 +984,27 @@ fn SaveSyncSettings(
                     },
                     "Add file"
                 }
+            }
+        }
+
+        h3 { "Snapshots" }
+
+        button {
+            class: "sync-create-button",
+            disabled: !config.enabled || config.locations.is_empty(),
+            onclick: move |_| {
+                on_create_snapshot.call(vn_id);
+            },
+            "Create snapshot now"
+        }
+
+        if !config.enabled {
+            p { class: "sync-action-hint",
+                "Enable save sync before creating a snapshot."
+            }
+        } else if config.locations.is_empty() {
+            p { class: "sync-action-hint",
+                "Add at least one save location before creating a snapshot."
             }
         }
     }

@@ -2006,6 +2006,19 @@ select option {
   gap: var(--space-2);
 }
 
+.sync-create-button {
+  width: 100%;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+}
+
+.sync-action-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (max-width: 760px) {
   :root {
     --detail-width: 300px;
