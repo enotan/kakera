@@ -22,7 +22,7 @@ use models::{
     AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
     NotificationLevel, PlaySession, SaveSyncConfig, StoryRoute, VisualNovel, default_umu_game_id,
 };
-use save_sync::create_local_snapshot_for_vn;
+use save_sync::{SnapshotManifest, create_local_snapshot_for_vn, list_local_snapshots_for_vn};
 use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
@@ -117,6 +117,9 @@ fn App() -> Element {
         None => None,
     };
 
+    let mut sync_snapshots = use_signal(Vec::<SnapshotManifest>::new);
+    let mut sync_snapshots_are_loading = use_signal(|| false);
+
     let saved_library_sort_mode = saved_settings.library_sort_mode.clone();
     let saved_library_filter_mode = saved_settings.library_filter_mode.clone();
 
@@ -146,6 +149,69 @@ fn App() -> Element {
         } else {
             None
         }
+    });
+
+    use_effect(move || {
+        let selected_id = *selected_vn_id.read();
+
+        sync_snapshots.set(Vec::new());
+
+        let Some(vn_id) = selected_id else {
+            sync_snapshots_are_loading.set(false);
+            return;
+        };
+
+        sync_snapshots_are_loading.set(true);
+
+        let data_directory = match kakera_data_dir() {
+            Ok(path) => path,
+            Err(error) => {
+                sync_snapshots_are_loading.set(false);
+                notification.set(Some(AppNotification {
+                    level: NotificationLevel::Error,
+                    message: format!("Could not load snapshots: {error}"),
+                }));
+                return;
+            }
+        };
+
+        let mut loaded_snapshots = sync_snapshots;
+        let mut loading_state = sync_snapshots_are_loading;
+        let current_selection = selected_vn_id;
+        let mut load_notification = notification;
+
+        spawn(async move {
+            let task_result = tokio::task::spawn_blocking(move || {
+                list_local_snapshots_for_vn(vn_id, data_directory)
+            })
+            .await;
+
+            if *current_selection.read() != Some(vn_id) {
+                return;
+            }
+
+            loading_state.set(false);
+
+            match task_result {
+                Ok(Ok(manifests)) => {
+                    loaded_snapshots.set(manifests);
+                }
+
+                Ok(Err(error)) => {
+                    load_notification.set(Some(AppNotification {
+                        level: NotificationLevel::Error,
+                        message: format!("Could not load snapshots: {error}"),
+                    }));
+                }
+
+                Err(error) => {
+                    load_notification.set(Some(AppNotification {
+                        level: NotificationLevel::Error,
+                        message: format!("Snapshot catalog task failed: {error}"),
+                    }));
+                }
+            }
+        });
     });
 
     let mut current_view = use_signal(|| AppView::Library);
@@ -630,6 +696,8 @@ fn App() -> Element {
                                                 proton_runners: proton_runners.clone(),
                                                 steam_prefixes: steam_prefixes.clone(),
                                                 steam_launch_option: steam_launch_option.clone(),
+                                                snapshots: sync_snapshots.read().clone(),
+                                                snapshots_are_loading: *sync_snapshots_are_loading.read(),
                                                 on_notes_change: move |(id, notes): (u64, String)| {
                                                     update_vn_and_save(
                                                         &mut vns,
@@ -1092,7 +1160,7 @@ fn App() -> Element {
                                                 on_umu_game_id_change: move |(id, game_id): (u64, String)| {
                                                     let game_id = if game_id.trim().is_empty() {
                                                         default_umu_game_id()
-                                                    } else {
+                     } else {
                                                         game_id
                                                     };
 
@@ -1248,6 +1316,7 @@ fn App() -> Element {
                                                         .find(|vn| vn.id == id)
                                                         .cloned();
 
+
                                                     let Some(vn) = selected_vn else {
                                                         notification.set(Some(AppNotification {
                                                             level: NotificationLevel::Error,
@@ -1287,6 +1356,10 @@ fn App() -> Element {
 
                                                         match task_result {
                                                             Ok(Ok(snapshot)) => {
+
+                                                                if *selected_vn_id.read() == Some(id) {
+                                                                    sync_snapshots.write().insert(0, snapshot.manifest.clone());
+                                                                }
                                                                 snapshot_notification.set(Some(AppNotification {
                                                                     level: NotificationLevel::Info,
                                                                     message: format!(

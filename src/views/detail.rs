@@ -1,4 +1,5 @@
 use crate::models::{LaunchMode, SaveLocation, SaveSyncConfig, StoryRoute, VisualNovel};
+use crate::save_sync::SnapshotManifest;
 use crate::update_vn_and_save;
 use crate::views::library::cover_source;
 use crate::vn_markup::{DescriptionPart, parse_description};
@@ -22,6 +23,8 @@ pub fn DetailView(
     proton_runners: Vec<ProtonRunner>,
     steam_prefixes: Vec<SteamPrefix>,
     steam_launch_option: String,
+    snapshots: Vec<SnapshotManifest>,
+    snapshots_are_loading: bool,
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
@@ -769,6 +772,8 @@ pub fn DetailView(
                     SaveSyncSettings {
                         vn_id: vn.id,
                         config: vn.save_sync.clone(),
+                        snapshots,
+                        snapshots_are_loading,
                         on_change: on_save_sync_change,
                         on_create_snapshot,
                     }
@@ -808,6 +813,8 @@ pub fn DetailView(
 fn SaveSyncSettings(
     vn_id: u64,
     config: SaveSyncConfig,
+    snapshots: Vec<SnapshotManifest>,
+    snapshots_are_loading: bool,
     on_change: EventHandler<(u64, SaveSyncConfig)>,
     on_create_snapshot: EventHandler<u64>,
 ) -> Element {
@@ -1007,6 +1014,46 @@ fn SaveSyncSettings(
                 "Add at least one save location before creating a snapshot."
             }
         }
+
+        div { class: "sync-snapshot-list",
+            if snapshots_are_loading {
+                p { class: "sync-location-empty", "Loading snapshots..." }
+            } else if snapshots.is_empty() {
+                p { class: "sync-location-empty", "No snapshots created yet." }
+            }
+
+            for snapshot in snapshots {
+                {
+                    let created_text = format_started_at(snapshot.created_at.clone());
+                    let file_count = snapshot.files.len();
+
+                    let total_bytes: u64 = snapshot
+                        .files
+                        .iter()
+                        .map(|file| file.size_bytes)
+                        .sum();
+
+                    let size_text = format_byte_size(total_bytes);
+
+                    let short_id: String = snapshot
+                        .snapshot_id
+                        .chars()
+                        .take(10)
+                        .collect();
+
+                    rsx! {
+                        div { class: "sync-snapshot-row",
+                            div { class: "sync-snapshot-heading",
+                                strong { "{created_text}" }
+                                span { "{file_count} files · {size_text}" }
+                            }
+
+                            code { title: "{snapshot.snapshot_id}", "{short_id}" }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1045,6 +1092,25 @@ fn format_started_at(started_at: String) -> String {
     };
     parsed_time.format("%Y-%m-%d %H:%M:%S").to_string()
 }
+
+fn format_byte_size(size_bytes: u64) -> String {
+    const KIBIBYTE: f64 = 1024.0;
+    const MEBIBYTE: f64 = KIBIBYTE * 1024.0;
+    const GIBIBYTE: f64 = MEBIBYTE * 1024.0;
+
+    let size = size_bytes as f64;
+
+    if size >= GIBIBYTE {
+        format!("{:.1} GiB", size / GIBIBYTE)
+    } else if size >= MEBIBYTE {
+        format!("{:.1} MiB", size / MEBIBYTE)
+    } else if size >= KIBIBYTE {
+        format!("{:.1} KiB", size / KIBIBYTE)
+    } else {
+        format!("{size_bytes} B")
+    }
+}
+
 fn format_playtime(total_seconds: u64) -> String {
     let hours = total_seconds as f64 / 3600.0;
     if hours < 1.0 {

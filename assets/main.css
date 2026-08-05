@@ -2019,6 +2019,40 @@ select option {
   font-size: 12px;
 }
 
+.sync-snapshot-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sync-snapshot-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+
+.sync-snapshot-heading {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sync-snapshot-heading span,
+.sync-snapshot-row code {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sync-snapshot-row code {
+  overflow: hidden;
+  max-width: 90px;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 760px) {
   :root {
     --detail-width: 300px;

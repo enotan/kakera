@@ -736,6 +736,19 @@ fn inspect_restore_destination(
     }
 }
 
+///lists verified local snapshots belonging to one vn
+pub fn list_local_snapshots_for_vn(
+    vn_id: u64,
+    kakera_data_dir: PathBuf,
+) -> Result<Vec<SnapshotManifest>, io::Error> {
+    let storage_directory = kakera_data_dir
+        .join("save-sync")
+        .join("vns")
+        .join(format!("vn-{vn_id}"));
+
+    list_local_snapshots(storage_directory)
+}
+
 ///creates a local snapshot for one vn
 pub fn create_local_snapshot_for_vn(
     vn_id: u64,
@@ -747,7 +760,7 @@ pub fn create_local_snapshot_for_vn(
 
     let device_id = load_or_create_device_id(sync_root)?;
 
-    let existing_snapshots = list_local_snapshots(storage_directory.clone())?;
+    let existing_snapshots = list_local_snapshots_for_vn(vn_id, kakera_data_dir.clone())?;
 
     let parent_snapshot_id = existing_snapshots
         .first()
