@@ -5,6 +5,7 @@ mod logs;
 mod models;
 mod save_sync;
 mod storage;
+mod sync_protocol;
 mod system;
 mod views;
 mod vn_markup;
