@@ -21,6 +21,7 @@ use logs::{launch_logs_dir, new_launch_log_path, update_latest_launch_log};
 use models::{
     AppNotification, AppSettings, LaunchMode, LibraryFilterMode, LibrarySortMode,
     NotificationLevel, PlaySession, SaveSyncConfig, StoryRoute, VisualNovel, default_umu_game_id,
+    new_save_sync_id,
 };
 use save_sync::{SnapshotManifest, create_local_snapshot_for_vn, list_local_snapshots_for_vn};
 use storage::{
@@ -91,13 +92,28 @@ fn ResizeHandle(class: String, direction: ResizeDirection) -> Element {
 
 #[component]
 fn App() -> Element {
-    let saved_library = match load_library() {
+    let mut saved_library = match load_library() {
         Ok(library) => library,
         Err(error) => {
             println!("Could not load library: {error}");
             Vec::new()
         }
     };
+
+    let mut generated_sync_ids = false;
+
+    for vn in saved_library.iter_mut() {
+        if vn.save_sync.enabled && vn.save_sync.sync_id.is_empty() {
+            vn.save_sync.sync_id = new_save_sync_id(vn.id);
+            generated_sync_ids = true;
+        }
+    }
+
+    if generated_sync_ids {
+        if let Err(error) = save_library(saved_library.clone()) {
+            println!("Could not save generated sync ids: {error}");
+        }
+    }
 
     let saved_settings = match load_settings() {
         Ok(settings) => settings,
@@ -161,6 +177,18 @@ fn App() -> Element {
             return;
         };
 
+        let vn_sync_id = vns
+            .read()
+            .iter()
+            .find(|vn| vn.id == vn_id)
+            .map(|vn| vn.save_sync.sync_id.clone())
+            .unwrap_or_default();
+
+        if vn_sync_id.is_empty() {
+            sync_snapshots_are_loading.set(false);
+            return;
+        }
+
         sync_snapshots_are_loading.set(true);
 
         let data_directory = match kakera_data_dir() {
@@ -182,7 +210,7 @@ fn App() -> Element {
 
         spawn(async move {
             let task_result = tokio::task::spawn_blocking(move || {
-                list_local_snapshots_for_vn(vn_id, data_directory)
+                list_local_snapshots_for_vn(vn_sync_id, data_directory)
             })
             .await;
 
@@ -1302,10 +1330,19 @@ fn App() -> Element {
                                                 },
 
                                                 //when changing sync settings
-                                                on_save_sync_change: move |(id, save_sync): (u64, SaveSyncConfig)| {
-                                                    update_vn_and_save(&mut vns, id, move |vn| {
-                                                        vn.save_sync = save_sync;
-                                                    }, "Could not save sync settings".to_string());
+                                                on_save_sync_change: move |(id, mut save_sync): (u64, SaveSyncConfig)| {
+                                                    if save_sync.enabled && save_sync.sync_id.is_empty() {
+                                                        save_sync.sync_id = new_save_sync_id(id);
+                                                    }
+
+                                                    update_vn_and_save(
+                                                        &mut vns,
+                                                        id,
+                                                        move |vn| {
+                                                            vn.save_sync = save_sync;
+                                                        },
+                                                        "Could not save sync settings".to_string(),
+                                                    );
                                                 },
 
                                                 //when making snapshot
@@ -1324,6 +1361,16 @@ fn App() -> Element {
                                                         }));
                                                         return;
                                                     };
+
+                                                    let vn_sync_id = vn.save_sync.sync_id.clone();
+
+                                                    if vn_sync_id.is_empty() {
+                                                        notification.set(Some(AppNotification {
+                                                            level: NotificationLevel::Error,
+                                                            message: "Could not create snapshot: this VN has no sync id.".to_string(),
+                                                        }));
+                                                        return;
+                                                    }
 
                                                     if !vn.save_sync.enabled || vn.save_sync.locations.is_empty() {
                                                         notification.set(Some(AppNotification {
@@ -1350,7 +1397,7 @@ fn App() -> Element {
 
                                                     spawn(async move {
                                                         let task_result = tokio::task::spawn_blocking(move || {
-                                                            create_local_snapshot_for_vn(id, locations, data_directory)
+                                                            create_local_snapshot_for_vn(vn_sync_id, locations, data_directory)
                                                         })
                                                         .await;
 

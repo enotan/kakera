@@ -88,6 +88,8 @@ pub struct SaveLocation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct SaveSyncConfig {
+    #[serde(default)]
+    pub sync_id: String,
     pub enabled: bool,
     pub locations: Vec<SaveLocation>,
     pub snapshot_before_launch: bool,
@@ -95,9 +97,19 @@ pub struct SaveSyncConfig {
     pub backup_before_restore: bool,
 }
 
+///creates a portable id for one vn's synced saves
+pub fn new_save_sync_id(vn_id: u64) -> String {
+    let timestamp = chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default();
+
+    let seed = format!("{vn_id}:{timestamp}:{}", std::process::id());
+
+    format!("sync-{}", blake3::hash(seed.as_bytes()).to_hex())
+}
+
 impl Default for SaveSyncConfig {
     fn default() -> Self {
         Self {
+            sync_id: String::new(),
             enabled: false,
             locations: Vec::new(),
             snapshot_before_launch: true,
@@ -177,7 +189,7 @@ impl Default for AppSettings {
 
 #[cfg(test)]
 mod tests {
-    use super::VisualNovel;
+    use super::{VisualNovel, new_save_sync_id};
 
     #[test]
     fn older_vn_uses_default_save_sync_config() {
@@ -201,5 +213,15 @@ mod tests {
         assert!(vn.save_sync.snapshot_before_launch);
         assert!(vn.save_sync.snapshot_after_exit);
         assert!(vn.save_sync.backup_before_restore);
+    }
+
+    #[test]
+    fn creates_distinct_portable_sync_ids() {
+        let first = new_save_sync_id(1);
+        let second = new_save_sync_id(2);
+
+        assert!(first.starts_with("sync-"));
+        assert_eq!(first.len(), 69);
+        assert_ne!(first, second);
     }
 }

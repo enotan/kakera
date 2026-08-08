@@ -738,41 +738,65 @@ fn inspect_restore_destination(
 
 ///lists verified local snapshots belonging to one vn
 pub fn list_local_snapshots_for_vn(
-    vn_id: u64,
+    vn_sync_id: String,
     kakera_data_dir: PathBuf,
 ) -> Result<Vec<SnapshotManifest>, io::Error> {
+    validate_vn_sync_id(vn_sync_id.clone())?;
+
     let storage_directory = kakera_data_dir
         .join("save-sync")
         .join("vns")
-        .join(format!("vn-{vn_id}"));
+        .join(vn_sync_id);
 
     list_local_snapshots(storage_directory)
 }
 
 ///creates a local snapshot for one vn
 pub fn create_local_snapshot_for_vn(
-    vn_id: u64,
+    vn_sync_id: String,
     locations: Vec<SaveLocation>,
     kakera_data_dir: PathBuf,
 ) -> Result<CreatedSnapshot, io::Error> {
+    validate_vn_sync_id(vn_sync_id.clone())?;
+
     let sync_root = kakera_data_dir.join("save-sync");
-    let storage_directory = sync_root.join("vns").join(format!("vn-{vn_id}"));
+    let storage_directory = sync_root.join("vns").join(vn_sync_id.clone());
 
     let device_id = load_or_create_device_id(sync_root)?;
 
-    let existing_snapshots = list_local_snapshots_for_vn(vn_id, kakera_data_dir.clone())?;
+    let existing_snapshots = list_local_snapshots_for_vn(vn_sync_id.clone(), kakera_data_dir)?;
 
     let parent_snapshot_id = existing_snapshots
         .first()
         .map(|manifest| manifest.snapshot_id.clone());
 
     create_snapshot(CreateSnapshotRequest {
-        vn_sync_id: format!("vn-{vn_id}"),
+        vn_sync_id,
         device_id,
         parent_snapshot_id,
         locations,
         storage_directory,
     })
+}
+
+fn validate_vn_sync_id(sync_id: String) -> Result<(), io::Error> {
+    let hash = sync_id.strip_prefix("sync-");
+
+    let is_valid = match hash {
+        Some(hash) => {
+            hash.len() == 64 && hash.chars().all(|character| character.is_ascii_hexdigit())
+        }
+        None => false,
+    };
+
+    if !is_valid {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "The VN sync id is invalid",
+        ));
+    }
+
+    Ok(())
 }
 
 ///creates and safely persists one complete local save snapshot
