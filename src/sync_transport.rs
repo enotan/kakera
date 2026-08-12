@@ -84,8 +84,10 @@ pub async fn receive_control_message(
 mod tests {
     use super::{receive_control_message, send_control_message};
     use crate::{
+        models::new_save_sync_id,
         sync_peer::{PeerConnectionInfo, bind_peer_endpoint, connect_to_peer},
         sync_protocol::{PeerHello, SYNC_PROTOCOL_VERSION, SyncMessage},
+        sync_session::build_inventory_response,
     };
 
     #[tokio::test]
@@ -102,6 +104,8 @@ mod tests {
             .expect("the client endpoint should bind");
 
         let server_info = PeerConnectionInfo::from_endpoint(&server);
+
+        let vn_sync_id = new_save_sync_id(42);
 
         let client_hello = SyncMessage::Hello(PeerHello {
             protocol_version: SYNC_PROTOCOL_VERSION,
@@ -140,6 +144,17 @@ mod tests {
                 .await
                 .expect("the server should send its hello");
 
+            let inventory_request = receive_control_message(&mut receive_stream)
+                .await
+                .expect("The server should receive the inventory request");
+
+            let inventory_response =
+                build_inventory_response(inventory_request, server_directory.path().to_path_buf());
+
+            send_control_message(&mut send_stream, &inventory_response)
+                .await
+                .expect("The server should send the inventory response");
+
             send_stream
                 .finish()
                 .expect("the server should finish its response stream");
@@ -170,6 +185,26 @@ mod tests {
                 .expect("the client should receive the server hello");
 
             assert_eq!(received_hello, server_hello);
+
+            let inventory_request = SyncMessage::SnapshotInventoryRequest {
+                vn_sync_id: vn_sync_id.clone(),
+            };
+
+            send_control_message(&mut send_stream, &inventory_request)
+                .await
+                .expect("The client should request the snapshot inventory");
+
+            let inventory_response = receive_control_message(&mut receive_stream)
+                .await
+                .expect("The client should receive the snapshot inventory");
+
+            assert_eq!(
+                inventory_response,
+                SyncMessage::SnapshotInventory {
+                    vn_sync_id: vn_sync_id.clone(),
+                    snapshots: Vec::new()
+                }
+            );
 
             send_stream
                 .finish()

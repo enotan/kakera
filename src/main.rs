@@ -7,6 +7,7 @@ mod save_sync;
 mod storage;
 mod sync_peer;
 mod sync_protocol;
+mod sync_session;
 mod sync_transport;
 mod system;
 mod views;
