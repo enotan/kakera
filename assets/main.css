@@ -2053,6 +2053,25 @@ select option {
   text-overflow: ellipsis;
 }
 
+.peer-sync-controls {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.peer-sync-controls label {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.detail-tab-content .peer-pairing-code {
+  min-height: 76px;
+  resize: vertical;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 @media (max-width: 760px) {
   :root {
     --detail-width: 300px;

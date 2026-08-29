@@ -1,6 +1,5 @@
 use crate::models::{LaunchMode, SaveLocation, SaveSyncConfig, StoryRoute, VisualNovel};
 use crate::save_sync::SnapshotManifest;
-use crate::update_vn_and_save;
 use crate::views::library::cover_source;
 use crate::vn_markup::{DescriptionPart, parse_description};
 use crate::wine::{ProtonRunner, SteamPrefix, WineRunner};
@@ -25,6 +24,10 @@ pub fn DetailView(
     steam_launch_option: String,
     snapshots: Vec<SnapshotManifest>,
     snapshots_are_loading: bool,
+    hosted_pairing_code: Option<String>,
+    peer_sync_is_busy: bool,
+    on_host_sync: EventHandler<u64>,
+    on_receive_snapshot: EventHandler<(u64, String)>,
     on_notes_change: EventHandler<(u64, String)>,
     on_route_add: EventHandler<(u64, String)>,
     on_route_toggle: EventHandler<(u64, String)>,
@@ -776,6 +779,10 @@ pub fn DetailView(
                         snapshots_are_loading,
                         on_change: on_save_sync_change,
                         on_create_snapshot,
+                        hosted_pairing_code,
+                        peer_sync_is_busy,
+                        on_host_sync,
+                        on_receive_snapshot,
                     }
                 }
             }
@@ -817,6 +824,10 @@ fn SaveSyncSettings(
     snapshots_are_loading: bool,
     on_change: EventHandler<(u64, SaveSyncConfig)>,
     on_create_snapshot: EventHandler<u64>,
+    hosted_pairing_code: Option<String>,
+    peer_sync_is_busy: bool,
+    on_host_sync: EventHandler<u64>,
+    on_receive_snapshot: EventHandler<(u64, String)>,
 ) -> Element {
     let enabled_config = config.clone();
     let before_launch_config = config.clone();
@@ -827,6 +838,11 @@ fn SaveSyncSettings(
 
     let mut location_message = use_signal(|| None::<String>);
     let current_location_message = location_message.read().clone();
+
+    let mut remote_pairing_code = use_signal(String::new);
+    let remote_pairing_code_value = remote_pairing_code.read().clone();
+
+    let snapshots_are_empty = snapshots.is_empty();
 
     rsx! {
         h3 { "Save sync" }
@@ -994,6 +1010,66 @@ fn SaveSyncSettings(
             }
         }
 
+        h3 { "Peer sync" }
+
+        p { class: "sync-description",
+            "Transfer this VN's newest snapshot directly between two different devices on the same network."
+        }
+
+        div { class: "peer-sync-controls",
+            button {
+                class: "sync-create-button",
+                disabled: !config.enabled
+                    || snapshots_are_empty
+                    || peer_sync_is_busy,
+                onclick: move |_| {
+                    on_host_sync.call(vn_id);
+                },
+                if peer_sync_is_busy && hosted_pairing_code.is_some() {
+                    "Waiting for peer..."
+                } else {
+                    "Host snapshot"
+                }
+            }
+
+            if let Some(pairing_code) = hosted_pairing_code {
+                label {
+                    "Pairing code"
+
+                    textarea {
+                        class: "peer-pairing-code",
+                        readonly: true,
+                        value: "{pairing_code}",
+                    }
+                }
+
+                p { class: "sync-action-hint",
+                    "Paste this code into Kakera on the receiving device."
+                }
+            }
+
+            label {
+                "Code from another device"
+
+                textarea {
+                    class: "peer-pairing-code",
+                    value: "{remote_pairing_code_value}",
+                    placeholder: "Paste pairing code",
+                    oninput: move |event| {
+                        remote_pairing_code.set(event.value());
+                    },
+                }
+            }
+
+            button {
+                disabled: !config.enabled || remote_pairing_code_value.trim().is_empty() || peer_sync_is_busy,
+                onclick: move |_| {
+                    on_receive_snapshot.call((vn_id, remote_pairing_code_value.clone()));
+                },
+                "Receive snapshot"
+            }
+        }
+
         h3 { "Snapshots" }
 
         button {
@@ -1018,7 +1094,7 @@ fn SaveSyncSettings(
         div { class: "sync-snapshot-list",
             if snapshots_are_loading {
                 p { class: "sync-location-empty", "Loading snapshots..." }
-            } else if snapshots.is_empty() {
+            } else if snapshots_are_empty {
                 p { class: "sync-location-empty", "No snapshots created yet." }
             }
 

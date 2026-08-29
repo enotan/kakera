@@ -111,6 +111,26 @@ impl PeerConnectionInfo {
 
         Ok(endpoint_address)
     }
+
+    ///encodes the endpoint as like, a "pairing code"? i guess that another kakera install can use to pair
+    pub fn to_pairing_code(&self) -> Result<String, io::Error> {
+        serde_json::to_string(self)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    }
+
+    ///decodes and validates the pairing info which was copied from another kakera install
+    pub fn from_pairing_code(pairing_code: String) -> Result<Self, io::Error> {
+        let peer: Self = serde_json::from_str(pairing_code.trim()).map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("The pairing code is invalid: {error}"),
+            )
+        })?;
+
+        peer.to_endpoint_addr()?;
+
+        Ok(peer)
+    }
 }
 
 ///opens a connetion to a paired peer
@@ -148,10 +168,59 @@ fn create_peer_secret(
     }
 }
 
+///everything another kakera install needs to receive vn snapshots
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SyncPairingInfo {
+    pub peer: PeerConnectionInfo,
+    pub vn_sync_id: String,
+}
+
+impl SyncPairingInfo {
+    ///encodes peer and vn id into one pairing code
+    pub fn to_pairing_code(&self) -> Result<String, io::Error> {
+        serde_json::to_string(self)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    }
+
+    ///decodes and validates a complete vn pairing code
+    pub fn from_pairing_code(pairing_code: String) -> Result<Self, io::Error> {
+        let pairing: Self = serde_json::from_str(pairing_code.trim()).map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("The pairing code is invalid: {error}"),
+            )
+        })?;
+
+        pairing.peer.to_endpoint_addr()?;
+
+        let hash = pairing.vn_sync_id.strip_prefix("sync-");
+
+        let sync_id_is_valid = match hash {
+            Some(hash) => {
+                hash.len() == 64
+                    && hash.chars().all(|character| {
+                        character.is_ascii_digit() || ('a'..='f').contains(&character)
+                    })
+            }
+            None => false,
+        };
+
+        if !sync_id_is_valid {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "The pairing code contains an invalid VN sync ID",
+            ));
+        }
+
+        Ok(pairing)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        PeerConnectionInfo, bind_peer_endpoint, connect_to_peer, load_or_create_peer_secret,
+        PeerConnectionInfo, SyncPairingInfo, bind_peer_endpoint, connect_to_peer,
+        load_or_create_peer_secret,
     };
 
     #[test]
@@ -221,5 +290,45 @@ mod tests {
         connected_connection.close(0_u32.into(), b"test complete");
         client.close().await;
         server.close().await;
+    }
+
+    #[test]
+    fn round_trips_pairing_code() {
+        let secret = iroh::SecretKey::generate();
+
+        let original = PeerConnectionInfo {
+            endpoint_id: secret.public().to_string(),
+            direct_addresses: vec!["192.168.1.25:49152".to_string()],
+        };
+
+        let pairing_code = original
+            .to_pairing_code()
+            .expect("The pairing code should encode");
+
+        let decoded = PeerConnectionInfo::from_pairing_code(pairing_code)
+            .expect("The pairing code should decode");
+
+        assert_eq!(decoded, original);
+    }
+    #[test]
+    fn round_trips_complete_sync_pairing_code() {
+        let secret = iroh::SecretKey::generate();
+
+        let original = SyncPairingInfo {
+            peer: PeerConnectionInfo {
+                endpoint_id: secret.public().to_string(),
+                direct_addresses: vec!["192.168.1.25:49152".to_string()],
+            },
+            vn_sync_id: crate::models::new_save_sync_id(42),
+        };
+
+        let code = original
+            .to_pairing_code()
+            .expect("The complete pairing code should encode");
+
+        let decoded = SyncPairingInfo::from_pairing_code(code)
+            .expect("The complete pairing code should decode");
+
+        assert_eq!(decoded, original);
     }
 }
