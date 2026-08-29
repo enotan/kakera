@@ -49,6 +49,14 @@ pub struct StoredBlob {
     pub reused_existing_blob: bool,
 }
 
+///a local blob which passed verification and should be safe to transfer
+#[derive(Debug, Clone, PartialEq)]
+pub struct VerifiedLocalBlob {
+    pub path: PathBuf,
+    pub size_bytes: u64,
+    pub content_hash: String,
+}
+
 ///a regular save file found on this device before it enters blob storage
 #[derive(Debug, Clone, PartialEq)]
 struct DiscoveredSaveFile {
@@ -749,6 +757,108 @@ pub fn list_local_snapshots_for_vn(
         .join(vn_sync_id);
 
     list_local_snapshots(storage_directory)
+}
+
+///verifies and stores a snapshot manifest received from another device
+pub fn persist_received_snapshot_manifest(
+    manifest: SnapshotManifest,
+    kakera_data_dir: PathBuf,
+) -> Result<PathBuf, io::Error> {
+    validate_vn_sync_id(manifest.vn_sync_id.clone())?;
+
+    if manifest.format_version != SNAPSHOT_FORMAT_VERSION {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The received snapshot uses an unsupported format",
+        ));
+    }
+
+    let expected_snapshot_id = snapshot_id_for_manifest(&manifest)?;
+
+    if expected_snapshot_id != manifest.snapshot_id {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The received snapshot failed identity verification",
+        ));
+    }
+
+    chrono::DateTime::parse_from_rfc3339(&manifest.created_at)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+
+    for snapshot_file in &manifest.files {
+        let blob = verified_local_blob_for_vn(
+            manifest.vn_sync_id.clone(),
+            snapshot_file.content_hash.clone(),
+            kakera_data_dir.clone(),
+        )?;
+
+        if blob.size_bytes != snapshot_file.size_bytes {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "A received snapshot blob has the wrong size",
+            ));
+        }
+    }
+
+    let manifest_dir = kakera_data_dir
+        .join("save-sync")
+        .join("vns")
+        .join(&manifest.vn_sync_id)
+        .join("manifests");
+
+    persist_manifest(&manifest, manifest_dir)
+}
+
+///locates and verifies one blob belonging to a vn's snapshot store
+pub fn verified_local_blob_for_vn(
+    vn_sync_id: String,
+    content_hash: String,
+    kakera_data_dir: PathBuf,
+) -> Result<VerifiedLocalBlob, io::Error> {
+    validate_vn_sync_id(vn_sync_id.clone())?;
+
+    let hash_is_valid = content_hash.len() == 64
+        && content_hash
+            .chars()
+            .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character));
+
+    if !hash_is_valid {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "The requested blob hash is invalid",
+        ));
+    }
+
+    let blob_path = kakera_data_dir
+        .join("save-sync")
+        .join("vns")
+        .join(vn_sync_id)
+        .join("blobs")
+        .join(format!("{content_hash}.blob"));
+
+    let metadata = fs::symlink_metadata(&blob_path)?;
+
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The requested blob is not a regular file",
+        ));
+    }
+
+    let fingerprint = hash_file(blob_path.clone())?;
+
+    if fingerprint.content_hash != content_hash {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The requested blob failed integrity verification",
+        ));
+    }
+
+    Ok(VerifiedLocalBlob {
+        path: blob_path,
+        size_bytes: fingerprint.size_bytes,
+        content_hash,
+    })
 }
 
 ///creates a local snapshot for one vn

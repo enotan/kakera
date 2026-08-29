@@ -1,10 +1,17 @@
-use crate::sync_protocol::{
-    MAX_CONTROL_MESSAGE_BYTES, SyncMessage, decode_message, encode_message,
+use crate::{
+    save_sync::{VerifiedLocalBlob, hash_file},
+    sync_protocol::{MAX_CONTROL_MESSAGE_BYTES, SyncMessage, decode_message, encode_message},
 };
 use iroh::endpoint::{RecvStream, SendStream};
-use std::io;
+use std::{
+    fs::File,
+    io::{self, Read, Write},
+    path::PathBuf,
+};
 
 const MESSAGE_LENGTH_BYTES: usize = 4;
+const BLOB_BUFFER_SIZE: usize = 64 * 1024;
+pub const MAX_BLOB_BYTES: u64 = 512 * 1024 * 1024;
 
 ///writes a message with a prefix of its length
 pub async fn send_control_message(
@@ -80,18 +87,144 @@ pub async fn receive_control_message(
     })
 }
 
+///streams one verified local blob to a peer
+pub async fn send_blob_bytes(
+    send_stream: &mut SendStream,
+    blob: &VerifiedLocalBlob,
+) -> Result<(), io::Error> {
+    let mut source_file = File::open(&blob.path)?;
+    let mut buffer = [0_u8; BLOB_BUFFER_SIZE];
+    let mut sent_bytes = 0_u64;
+    let mut hasher = blake3::Hasher::new();
+
+    loop {
+        let bytes_read = source_file.read(&mut buffer)?;
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        let chunk = &buffer[..bytes_read];
+
+        send_stream
+            .write_all(chunk)
+            .await
+            .map_err(io::Error::other)?;
+
+        hasher.update(chunk);
+        sent_bytes += bytes_read as u64;
+    }
+
+    let sent_hash = hasher.finalize().to_hex().to_string();
+
+    if sent_bytes != blob.size_bytes || sent_hash != blob.content_hash {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The local blob changed during transmission!!",
+        ));
+    }
+
+    Ok(())
+}
+
+///receives exactly one announced blob and safely stores it by content hash
+pub async fn receive_blob_bytes(
+    receive_stream: &mut RecvStream,
+    content_hash: String,
+    size_bytes: u64,
+    destination_dir: PathBuf,
+) -> Result<PathBuf, io::Error> {
+    if size_bytes > MAX_BLOB_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The peer announced a blob larger than Kakera's limit",
+        ));
+    }
+
+    let hash_is_valid = content_hash.len() == 64
+        && content_hash
+            .chars()
+            .all(|character| character.is_ascii_digit() || ('a'..='f').contains(&character));
+
+    if !hash_is_valid {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The peer announced an invalid blob hash",
+        ));
+    }
+
+    std::fs::create_dir_all(&destination_dir)?;
+
+    let destination_path = destination_dir.join(format!("{content_hash}.blob"));
+
+    let mut temp_file = tempfile::NamedTempFile::new_in(&destination_dir)?;
+
+    let mut buffer = [0_u8; BLOB_BUFFER_SIZE];
+    let mut remaining_bytes = size_bytes;
+    let mut hasher = blake3::Hasher::new();
+
+    while remaining_bytes > 0 {
+        let next_chunk_size = remaining_bytes.min(BLOB_BUFFER_SIZE as u64) as usize;
+
+        let chunk = &mut buffer[..next_chunk_size];
+
+        receive_stream
+            .read_exact(chunk)
+            .await
+            .map_err(io::Error::other)?;
+
+        temp_file.write_all(chunk)?;
+        hasher.update(chunk);
+        remaining_bytes -= next_chunk_size as u64;
+    }
+
+    temp_file.as_file_mut().sync_all()?;
+
+    let received_hash = hasher.finalize().to_hex().to_string();
+
+    if received_hash != content_hash {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The received blob failed integrity verification",
+        ));
+    }
+
+    match temp_file.persist_noclobber(&destination_path) {
+        Ok(_) => Ok(destination_path),
+
+        Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
+            let existing_fingerprint = hash_file(destination_path.clone())?;
+
+            if existing_fingerprint.content_hash != content_hash
+                || existing_fingerprint.size_bytes != size_bytes
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "The existing received blob failed verification",
+                ));
+            }
+
+            Ok(destination_path)
+        }
+
+        Err(error) => Err(error.error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{receive_control_message, send_control_message};
     use crate::{
-        models::new_save_sync_id,
+        models::{SaveLocation, new_save_sync_id},
+        save_sync::{
+            create_local_snapshot_for_vn, list_local_snapshots_for_vn, verified_local_blob_for_vn,
+        },
         sync_peer::{PeerConnectionInfo, bind_peer_endpoint, connect_to_peer},
-        sync_protocol::{PeerHello, SYNC_PROTOCOL_VERSION, SyncMessage},
-        sync_session::build_inventory_response,
+        sync_protocol::{PeerHello, SYNC_PROTOCOL_VERSION, SnapshotDescriptor, SyncMessage},
+        sync_session::{receive_latest_snapshot_from_peer, serve_sync_connection},
     };
 
     #[tokio::test]
-    async fn exchanges_hello_messages_between_direct_peers() {
+    async fn exchange_snapshot_manifest_between_direct_peers() {
         let server_directory = tempfile::tempdir().expect("the server directory should be created");
         let client_directory = tempfile::tempdir().expect("the client directory should be created");
 
@@ -107,114 +240,100 @@ mod tests {
 
         let vn_sync_id = new_save_sync_id(42);
 
-        let client_hello = SyncMessage::Hello(PeerHello {
+        let live_save_dir = server_directory.path().join("live-saves");
+        std::fs::create_dir_all(&live_save_dir).expect("The live save directory should be created");
+
+        let live_save_path = live_save_dir.join("slot1.sav");
+        std::fs::write(&live_save_path, b"chapter 3 save data")
+            .expect("The live save should be written");
+
+        let created_snapshot = create_local_snapshot_for_vn(
+            vn_sync_id.clone(),
+            vec![SaveLocation {
+                id: "main-save".to_string(),
+                path: live_save_path.to_string_lossy().into_owned(),
+                label: "Main save".to_string(),
+            }],
+            server_directory.path().to_path_buf(),
+        )
+        .expect("The server snapshot should be created");
+
+        let expected_descriptor = SnapshotDescriptor::from_manifest(&created_snapshot.manifest);
+
+        let expected_manifest = created_snapshot.manifest.clone();
+
+        let client_hello_data = PeerHello {
             protocol_version: SYNC_PROTOCOL_VERSION,
             device_id: "client-device".to_string(),
             device_name: "Steam Deck".to_string(),
-        });
+        };
 
-        let server_hello = SyncMessage::Hello(PeerHello {
+        let server_hello_data = PeerHello {
             protocol_version: SYNC_PROTOCOL_VERSION,
             device_id: "server-device".to_string(),
             device_name: "Desktop".to_string(),
-        });
+        };
+
+        let server_hello = SyncMessage::Hello(server_hello_data.clone());
 
         let server_conversation = async {
             let incoming = server
                 .accept()
                 .await
-                .expect("the server should receive a connection");
+                .expect("The server should receive a connection");
 
             let connection = incoming
                 .await
-                .expect("the encrypted handshake should succeed");
+                .expect("The encrypted handshake should succeed");
 
-            let (mut send_stream, mut receive_stream) = connection
-                .accept_bi()
-                .await
-                .expect("the server should accept the control stream");
+            let completed = serve_sync_connection(
+                connection,
+                server_hello_data,
+                server_directory.path().to_path_buf(),
+            )
+            .await
+            .expect("The production server should complete the transfer");
 
-            let received_hello = receive_control_message(&mut receive_stream)
-                .await
-                .expect("the server should receive the client hello");
-
-            assert_eq!(received_hello, client_hello);
-
-            send_control_message(&mut send_stream, &server_hello)
-                .await
-                .expect("the server should send its hello");
-
-            let inventory_request = receive_control_message(&mut receive_stream)
-                .await
-                .expect("The server should receive the inventory request");
-
-            let inventory_response =
-                build_inventory_response(inventory_request, server_directory.path().to_path_buf());
-
-            send_control_message(&mut send_stream, &inventory_response)
-                .await
-                .expect("The server should send the inventory response");
-
-            send_stream
-                .finish()
-                .expect("the server should finish its response stream");
-
-            let stop_code = send_stream
-                .stopped()
-                .await
-                .expect("waiting for the peer acknowledgement should succeed PLEASE");
-            assert_eq!(stop_code, None);
+            assert_eq!(completed.vn_sync_id, vn_sync_id);
+            assert_eq!(completed.snapshot_id, expected_manifest.snapshot_id);
         };
 
         let client_conversation = async {
             let connection = connect_to_peer(&client, server_info)
                 .await
-                .expect("the client should connect directly");
+                .expect("The client should connect directly");
 
-            let (mut send_stream, mut receive_stream) = connection
-                .open_bi()
-                .await
-                .expect("the client should open a control stream");
+            let received = receive_latest_snapshot_from_peer(
+                connection,
+                client_hello_data,
+                vn_sync_id.clone(),
+                client_directory.path().to_path_buf(),
+            )
+            .await
+            .expect("The production client should receive the latest snapshot");
 
-            send_control_message(&mut send_stream, &client_hello)
-                .await
-                .expect("the client should send its hello");
+            assert_eq!(received.manifest, expected_manifest);
+            assert_eq!(received.downloaded_blob_count, 1);
 
-            let received_hello = receive_control_message(&mut receive_stream)
-                .await
-                .expect("the client should receive the server hello");
+            let client_snapshots = list_local_snapshots_for_vn(
+                vn_sync_id.clone(),
+                client_directory.path().to_path_buf(),
+            )
+            .expect("The client snapshot inventory should load");
 
-            assert_eq!(received_hello, server_hello);
+            assert_eq!(client_snapshots, vec![expected_manifest.clone()]);
 
-            let inventory_request = SyncMessage::SnapshotInventoryRequest {
-                vn_sync_id: vn_sync_id.clone(),
-            };
+            let received_blob = verified_local_blob_for_vn(
+                vn_sync_id.clone(),
+                expected_manifest.files[0].content_hash.clone(),
+                client_directory.path().to_path_buf(),
+            )
+            .expect("The transferred blob should be stored and valid");
 
-            send_control_message(&mut send_stream, &inventory_request)
-                .await
-                .expect("The client should request the snapshot inventory");
+            let received_bytes =
+                std::fs::read(received_blob.path).expect("The transferred blob should be readable");
 
-            let inventory_response = receive_control_message(&mut receive_stream)
-                .await
-                .expect("The client should receive the snapshot inventory");
-
-            assert_eq!(
-                inventory_response,
-                SyncMessage::SnapshotInventory {
-                    vn_sync_id: vn_sync_id.clone(),
-                    snapshots: Vec::new()
-                }
-            );
-
-            send_stream
-                .finish()
-                .expect("the client should finish its request stream");
-
-            let stop_code = send_stream
-                .stopped()
-                .await
-                .expect("waiting for the peer acknowledgement should succeed PLEASE");
-            assert_eq!(stop_code, None);
+            assert_eq!(received_bytes, b"chapter 3 save data");
         };
 
         tokio::join!(server_conversation, client_conversation);

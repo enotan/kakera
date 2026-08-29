@@ -63,7 +63,10 @@ pub enum SyncMessage {
     Manifest { manifest: SnapshotManifest },
 
     ///requests one save blob
-    BlobRequest { content_hash: String },
+    BlobRequest {
+        vn_sync_id: String,
+        content_hash: String,
+    },
 
     ///announces the raw blob bytes that come right after the message
     BlobReady {
