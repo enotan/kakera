@@ -349,6 +349,82 @@ pub struct RestoreBackupConfig {
     pub storage_directory: PathBuf,
 }
 
+///maps snapshot location ids onto a specific device's configured save paths
+pub fn map_received_snapshot_locations(
+    manifest: &SnapshotManifest,
+    mut locations: Vec<SaveLocation>,
+) -> Result<Vec<SaveLocation>, io::Error> {
+    let mut incoming_ids: Vec<String> = Vec::new();
+
+    for file in &manifest.files {
+        if !incoming_ids.contains(&file.location_id) {
+            incoming_ids.push(file.location_id.clone());
+        }
+    }
+
+    let every_location_matches = incoming_ids
+        .iter()
+        .all(|incoming_id| locations.iter().any(|location| location.id == *incoming_id));
+
+    if every_location_matches {
+        return Ok(locations);
+    }
+
+    if incoming_ids.len() == 1 && locations.len() == 1 {
+        locations[0].id = incoming_ids[0].clone();
+        return Ok(locations);
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "The snapshot has {} unmatched save locations but this device has {} configured locations.",
+            incoming_ids.len(),
+            locations.len()
+        ),
+    ))
+}
+
+///restores a received snapshot into a specific device's configured save locations
+pub fn apply_received_snapshot(
+    manifest: SnapshotManifest,
+    locations: Vec<SaveLocation>,
+    kakera_data_dir: PathBuf,
+    backup_before_restore: bool,
+) -> Result<AppliedReceivedSnapshot, io::Error> {
+    let mapped_locations = map_received_snapshot_locations(&manifest, locations)?;
+
+    let vn_sync_id = manifest.vn_sync_id.clone();
+    let sync_root = kakera_data_dir.join("save-sync");
+    let storage_directory = sync_root.join("vns").join(&vn_sync_id);
+
+    let plan = plan_snapshot_restore(RestoreSnapshotRequest {
+        manifest,
+        locations: mapped_locations.clone(),
+        storage_directory: storage_directory.clone(),
+    })?;
+
+    let conflict_policy = if backup_before_restore {
+        let device_id = load_or_create_device_id(sync_root)?;
+
+        RestoreConflictPolicy::BackupAndReplace(RestoreBackupConfig {
+            vn_sync_id,
+            device_id,
+            locations: mapped_locations.clone(),
+            storage_directory,
+        })
+    } else {
+        RestoreConflictPolicy::Reject
+    };
+
+    let restore = apply_restore_plan_with_policy(plan, conflict_policy)?;
+
+    Ok(AppliedReceivedSnapshot {
+        restore,
+        mapped_locations,
+    })
+}
+
 ///controls how an applied restore handles different live save files
 #[derive(Debug, Clone, PartialEq)]
 pub enum RestoreConflictPolicy {
@@ -1237,6 +1313,13 @@ pub fn apply_restore_plan(plan: RestorePlan) -> Result<AppliedRestore, io::Error
         skipped_identical_count,
         backup_snapshot_id: None,
     })
+}
+
+///result of mapping and restoring a snapshot received from another device
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppliedReceivedSnapshot {
+    pub restore: AppliedRestore,
+    pub mapped_locations: Vec<SaveLocation>,
 }
 
 ///applies a restore using an explicit conflict policy

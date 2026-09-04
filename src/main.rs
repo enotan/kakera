@@ -28,8 +28,8 @@ use models::{
     new_save_sync_id,
 };
 use save_sync::{
-    SnapshotManifest, create_local_snapshot_for_vn, list_local_snapshots_for_vn,
-    load_or_create_device_id,
+    SnapshotManifest, apply_received_snapshot, create_local_snapshot_for_vn,
+    list_local_snapshots_for_vn, load_or_create_device_id,
 };
 use std::io;
 use storage::{
@@ -962,6 +962,8 @@ fn App() -> Element {
                                                         let peer = pairing.peer;
                                                         let shared_sync_id = pairing.vn_sync_id;
                                                         let vn_title = vn.title.clone();
+                                                        let local_locations = vn.save_sync.locations.clone();
+                                                        let backup_before_restore = vn.save_sync.backup_before_restore;
 
                                                         let mut busy_state = peer_sync_is_busy;
                                                         let mut host_code_state = hosted_pairing_code;
@@ -989,7 +991,7 @@ fn App() -> Element {
                                                             let transfer_result = async {
                                                                 let connection = connect_to_peer(&endpoint, peer).await?;
 
-                                                                receive_latest_snapshot_from_peer(connection, hello, shared_sync_id.clone(), data_directory).await
+                                                                receive_latest_snapshot_from_peer(connection, hello, shared_sync_id.clone(), data_directory.clone()).await
                                                             }.await;
 
                                                             endpoint.close().await;
@@ -1019,6 +1021,36 @@ fn App() -> Element {
                                                                         }
                                                                     }
 
+                                                                    let applied = match apply_received_snapshot(
+                                                                        received_manifest.clone(),
+                                                                        local_locations,
+                                                                        data_directory.clone(),
+                                                                        backup_before_restore,
+                                                                    ) {
+                                                                        Ok(applied) => applied,
+
+                                                                        Err(error) => {
+                                                                            receive_notification.set(Some(AppNotification {
+                                                                                level: NotificationLevel::Error,
+                                                                                message: format!(
+                                                                                    "The {vn_title} snapshot was downloaded, but could not be restored: {error}"
+                                                                                )
+                                                                            }));
+                                                                            return;
+                                                                        }
+                                                                    };
+
+                                                                    let mapped_locations = applied.mapped_locations;
+
+                                                                    update_vn_and_save(
+                                                                        &mut library_state,
+                                                                        id,
+                                                                        move |vn| {
+                                                                        vn.save_sync.locations = mapped_locations;
+                                                                        },
+                                                                        "Could not save the mapped save locations".to_string(),
+                                                                    );
+
                                                                     let short_snapshot_id: String = received_manifest
                                                                         .snapshot_id
                                                                         .chars()
@@ -1027,7 +1059,7 @@ fn App() -> Element {
 
                                                                     receive_notification.set(Some(AppNotification {
                                                                         level: NotificationLevel::Info,
-                                                                        message: format!("Received {vn_title} snapshot {short_snapshot_id}: {} new blobs.", received.downloaded_blob_count)
+                                                                        message: format!("Received {vn_title} snapshot {short_snapshot_id}: {} new blobs and {} files restored.", received.downloaded_blob_count, applied.restore.restored_file_count)
                                                                     }));
                                                                 }
 
