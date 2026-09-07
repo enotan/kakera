@@ -1036,33 +1036,41 @@ fn SaveSyncSettings(
                 label {
                     "Pairing code"
 
-                    textarea {
+                    input {
                         class: "peer-pairing-code",
+                        r#type: "text",
                         readonly: true,
                         value: "{pairing_code}",
                     }
                 }
 
                 p { class: "sync-action-hint",
-                    "Paste this code into Kakera on the receiving device."
+                    "Enter this code into Kakera on the receiving device."
                 }
             }
 
             label {
                 "Code from another device"
 
-                textarea {
-                    class: "peer-pairing-code",
-                    value: "{remote_pairing_code_value}",
-                    placeholder: "Paste pairing code",
-                    oninput: move |event| {
-                        remote_pairing_code.set(event.value());
-                    },
-                }
+                    input {
+                        class: "peer-pairing-code",
+                        r#type: "text",
+                        maxlength: "9",
+                        autocomplete: "off",
+                        spellcheck: "false",
+                        value: "{remote_pairing_code_value}",
+                        placeholder: "XXXX-XXXX",
+
+                        oninput: move |event| {
+                            let formatted_code = format_short_pairing_code(event.value());
+
+                            remote_pairing_code.set(formatted_code);
+                        },
+                    }
             }
 
             button {
-                disabled: !config.enabled || remote_pairing_code_value.trim().is_empty() || peer_sync_is_busy,
+                disabled: !config.enabled || remote_pairing_code_value.len() != 9 || peer_sync_is_busy,
                 onclick: move |_| {
                     on_receive_snapshot.call((vn_id, remote_pairing_code_value.clone()));
                 },
@@ -1196,6 +1204,23 @@ fn format_playtime(total_seconds: u64) -> String {
         format!("{hours:.1} hrs")
     }
 }
+
+fn format_short_pairing_code(value: String) -> String {
+    let mut compact = String::new();
+
+    for character in value.chars() {
+        if character.is_ascii_alphanumeric() && compact.len() < 8 {
+            compact.push(character.to_ascii_uppercase());
+        }
+    }
+
+    if compact.len() > 4 {
+        compact.insert(4, '-');
+    }
+
+    compact
+}
+
 ///need a component because dioxus hates match or something
 #[component]
 fn DescriptionPartView(part: DescriptionPart) -> Element {

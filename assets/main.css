@@ -2064,12 +2064,14 @@ select option {
 }
 
 .detail-tab-content .peer-pairing-code {
-  min-height: 76px;
-  resize: vertical;
-  overflow-wrap: anywhere;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  text-align: center;
   font-family: monospace;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 @media (max-width: 760px) {

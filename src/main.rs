@@ -36,7 +36,10 @@ use storage::{
     add_play_session_to_library, kakera_data_dir, load_library, load_settings, save_library,
     save_settings,
 };
-use sync_peer::{PeerConnectionInfo, SyncPairingInfo, bind_peer_endpoint, connect_to_peer};
+use sync_peer::{
+    PeerConnectionInfo, SyncPairingInfo, advertise_pairing_on_lan, bind_peer_endpoint,
+    connect_to_peer, create_short_pairing_code, discover_pairing_on_lan,
+};
 use sync_protocol::{PeerHello, SYNC_PROTOCOL_VERSION};
 use sync_session::{receive_latest_snapshot_from_peer, serve_sync_connection};
 use system::{is_flatpak_document_portal_path, open_folder, umu_launcher_is_available};
@@ -834,30 +837,43 @@ fn App() -> Element {
                                                                 }
                                                             };
 
-                                                            let pairing_code = match (SyncPairingInfo { peer: PeerConnectionInfo::from_endpoint(&endpoint), vn_sync_id, }).to_pairing_code() {
-                                                                Ok(code) => code,
-                                                                Err(error) => {
-                                                                    endpoint.close().await;
-                                                                    busy_state.set(false);
-                                                                    host_notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Error,
-                                                                        message: format!("Could not create pairing code: {error}"),
-                                                                    }));
-                                                                    return;
-                                                                }
+                                                            let pairing = SyncPairingInfo {
+                                                                peer: PeerConnectionInfo::from_endpoint(&endpoint),
+                                                                vn_sync_id,
                                                             };
 
-                                                            host_code_state.set(Some(pairing_code));
+                                                            let pairing_code = create_short_pairing_code();
+                                                            host_code_state.set(Some(pairing_code.clone()));
 
-                                                            let transfer_result = async {
-                                                                let incoming = endpoint.accept().await.ok_or_else(|| {
-                                                                    io::Error::new(io::ErrorKind::ConnectionAborted, "The peer endpoint closed while waiting")
-                                                                })?;
+                                                            let transfer_result = {
+                                                                let discovery = advertise_pairing_on_lan(pairing_code, pairing);
 
-                                                                let connection = incoming.await.map_err(io::Error::other)?;
+                                                                let transfer = async {
+                                                                    let incoming = endpoint.accept().await.ok_or_else(|| {
+                                                                        io::Error::new(io::ErrorKind::ConnectionAborted, "The peer endpoint closed while waiting")
+                                                                    })?;
 
-                                                                serve_sync_connection(connection, hello, data_directory).await
-                                                            }.await;
+                                                                    let connection = incoming.await.map_err(io::Error::other)?;
+
+                                                                    serve_sync_connection(connection, hello, data_directory).await
+                                                                };
+
+                                                                tokio::pin!(discovery);
+                                                                tokio::pin!(transfer);
+
+                                                                tokio::select! {
+                                                                    result = &mut transfer => result,
+
+                                                                    result = &mut discovery => {
+                                                                        match result {
+                                                                            Ok(()) => Err(io::Error::other(
+                                                                                "LAN pairing discovery stopped unexpectedly",
+                                                                            )),
+                                                                            Err(error) => Err(error),
+                                                                        }
+                                                                    }
+                                                                }
+                                                            };
 
                                                             endpoint.close().await;
                                                             host_code_state.set(None);
@@ -882,16 +898,7 @@ fn App() -> Element {
                                                     },
 
                                                     on_receive_snapshot: move |(id, pairing_code): (u64, String)| {
-                                                        let pairing = match SyncPairingInfo::from_pairing_code(pairing_code) {
-                                                            Ok(pairing) => pairing,
-                                                            Err(error) => {
-                                                                notification.set(Some(AppNotification {
-                                                                    level: NotificationLevel::Error,
-                                                                    message: format!("Could not use pairing code: {error}")
-                                                                }));
-                                                                return;
-                                                            }
-                                                        };
+                                                        let short_pairing_code = pairing_code.trim().to_ascii_uppercase();
 
                                                         let selected_vn = vns
                                                             .read()
@@ -918,28 +925,6 @@ fn App() -> Element {
                                                             }
                                                         };
 
-                                                        if !vn.save_sync.sync_id.is_empty() && vn.save_sync.sync_id != pairing.vn_sync_id {
-                                                            match list_local_snapshots_for_vn(vn.save_sync.sync_id.clone(), data_directory.clone()) {
-                                                                Ok(snapshots) if !snapshots.is_empty() => {
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Warning,
-                                                                        message: "This VN already has snapshots under a different sync ID.".to_string(),
-                                                                    }));
-                                                                    return;
-                                                                }
-
-                                                                Ok(_) => {}
-
-                                                                Err(error) => {
-                                                                    notification.set(Some(AppNotification {
-                                                                        level: NotificationLevel::Error,
-                                                                        message: format!("Could not inspect the existing snapshot history: {error}")
-                                                                    }));
-                                                                    return;
-                                                                }
-                                                            }
-                                                        }
-
                                                         let sync_directory = data_directory.join("save-sync");
 
                                                         let device_id = match load_or_create_device_id(sync_directory.clone()) {
@@ -959,8 +944,7 @@ fn App() -> Element {
                                                             device_name: local_device_name(),
                                                         };
 
-                                                        let peer = pairing.peer;
-                                                        let shared_sync_id = pairing.vn_sync_id;
+                                                        let current_sync_id = vn.save_sync.sync_id.clone();
                                                         let vn_title = vn.title.clone();
                                                         let local_locations = vn.save_sync.locations.clone();
                                                         let backup_before_restore = vn.save_sync.backup_before_restore;
@@ -976,6 +960,46 @@ fn App() -> Element {
                                                         host_code_state.set(None);
 
                                                         spawn(async move {
+                                                            let pairing = match discover_pairing_on_lan(short_pairing_code).await {
+                                                                Ok(pairing) => pairing,
+
+                                                                Err(error) => {
+                                                                    busy_state.set(false);
+                                                                    receive_notification.set(Some(AppNotification {
+                                                                        level: NotificationLevel::Error,
+                                                                        message: format!("Could not find the peer: {error}")
+                                                                    }));
+                                                                    return;
+                                                                }
+                                                            };
+
+                                                            if !current_sync_id.is_empty() && current_sync_id != pairing.vn_sync_id {
+                                                                match list_local_snapshots_for_vn(current_sync_id, data_directory.clone()) {
+                                                                    Ok(snapshots) if !snapshots.is_empty() => {
+                                                                        busy_state.set(false);
+                                                                        receive_notification.set(Some(AppNotification {
+                                                                            level: NotificationLevel::Warning,
+                                                                            message: "This VN already has snapshots under a different sync ID.".to_string()
+                                                                        }));
+                                                                        return;
+                                                                    }
+
+                                                                    Ok(_) => {}
+
+                                                                    Err(error) => {
+                                                                        busy_state.set(false);
+                                                                        receive_notification.set(Some(AppNotification {
+                                                                            level: NotificationLevel::Error,
+                                                                            message: format!("Could not inspect the existing snapshot history: {error}")
+                                                                        }));
+                                                                        return;
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            let peer = pairing.peer;
+                                                            let shared_sync_id = pairing.vn_sync_id;
+
                                                             let endpoint = match bind_peer_endpoint(sync_directory).await {
                                                                 Ok(endpoint) => endpoint,
                                                                 Err(error) => {

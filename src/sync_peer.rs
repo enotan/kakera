@@ -9,10 +9,19 @@ use std::{
     net::SocketAddr,
     path::PathBuf,
 };
+use tokio::{
+    net::UdpSocket,
+    time::{Duration, timeout},
+};
 
 const PEER_SECRET_FILE_NAME: &str = "peer-secret-key";
 ///something for QUIC or whatever idk the docs told me i need it
 pub const KAKERA_SYNC_ALPN: &[u8] = b"xyz.majou.kakera/save-sync/1";
+
+///specifically avoiding 0/O and 1/I because i hate seeing those in codes
+const PAIRING_CODE_ALPHABET: &[u8; 32] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+const PAIRING_DISCOVERY_PORT: u16 = 46_434;
 
 ///the info needed to be shared to connect to another peer
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -51,6 +60,128 @@ pub async fn bind_peer_endpoint(sync_storage_directory: PathBuf) -> Result<Endpo
         .bind()
         .await
         .map_err(io::Error::other)
+}
+
+///creates a short one-time pairing code in the form XXXX-XXXX
+pub fn create_short_pairing_code() -> String {
+    let random_bytes = SecretKey::generate().to_bytes();
+    let mut code = String::with_capacity(9);
+
+    for (index, random_byte) in random_bytes.iter().take(8).enumerate() {
+        if index == 4 {
+            code.push('-');
+        }
+
+        let alphabet_index = usize::from(*random_byte) % PAIRING_CODE_ALPHABET.len();
+        code.push(char::from(PAIRING_CODE_ALPHABET[alphabet_index]));
+    }
+
+    code
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "message", rename_all = "snake_case")]
+enum PairingDiscoveryMessage {
+    Find {
+        code_hash: String,
+    },
+    Found {
+        code_hash: String,
+        pairing_info: String,
+    },
+}
+
+fn pairing_code_hash(code: String) -> String {
+    blake3::hash(code.as_bytes()).to_hex().to_string()
+}
+
+///advertises pairing info to a device with the one time code
+pub async fn advertise_pairing_on_lan(
+    code: String,
+    pairing: SyncPairingInfo,
+) -> Result<(), io::Error> {
+    let socket = UdpSocket::bind(("0.0.0.0", PAIRING_DISCOVERY_PORT)).await?;
+    let expected_hash = pairing_code_hash(code);
+    let pairing_info = pairing.to_pairing_code()?;
+    let mut buffer = vec![0_u8; 16_384];
+
+    loop {
+        let (received_length, sender) = socket.recv_from(&mut buffer).await?;
+
+        let message: PairingDiscoveryMessage =
+            match serde_json::from_slice(&buffer[..received_length]) {
+                Ok(message) => message,
+                Err(_) => continue,
+            };
+
+        let PairingDiscoveryMessage::Find { code_hash } = message else {
+            continue;
+        };
+
+        if code_hash != expected_hash {
+            continue;
+        }
+
+        let response = PairingDiscoveryMessage::Found {
+            code_hash,
+            pairing_info: pairing_info.clone(),
+        };
+
+        let encoded = serde_json::to_vec(&response).map_err(io::Error::other)?;
+        socket.send_to(&encoded, sender).await?;
+    }
+}
+
+///finds another kakera device advertising the one time pairing code
+pub async fn discover_pairing_on_lan(code: String) -> Result<SyncPairingInfo, io::Error> {
+    let normalized_code = code.trim().to_ascii_uppercase();
+    let code_hash = pairing_code_hash(normalized_code);
+    let socket = UdpSocket::bind(("0.0.0.0", 0)).await?;
+
+    socket.set_broadcast(true)?;
+
+    let request = PairingDiscoveryMessage::Find {
+        code_hash: code_hash.clone(),
+    };
+
+    let encoded = serde_json::to_vec(&request).map_err(io::Error::other)?;
+
+    socket
+        .send_to(&encoded, ("255.255.255.255", PAIRING_DISCOVERY_PORT))
+        .await?;
+
+    let receive_response = async {
+        let mut buffer = vec![0_u8; 16_384];
+
+        loop {
+            let (received_length, _) = socket.recv_from(&mut buffer).await?;
+
+            let message: PairingDiscoveryMessage =
+                match serde_json::from_slice(&buffer[..received_length]) {
+                    Ok(message) => message,
+                    Err(_) => continue,
+                };
+
+            if let PairingDiscoveryMessage::Found {
+                code_hash: response_hash,
+                pairing_info,
+            } = message
+            {
+                if response_hash == code_hash {
+                    return SyncPairingInfo::from_pairing_code(pairing_info);
+                }
+            }
+        }
+    };
+
+    match timeout(Duration::from_secs(8), receive_response).await {
+        Ok(result) => result,
+
+        Err(_) => Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "No Kakera host with that pairing code was found on the local network",
+        )),
+    }
 }
 
 fn decode_peer_secret(bytes: Vec<u8>) -> Result<SecretKey, io::Error> {
@@ -220,7 +351,7 @@ impl SyncPairingInfo {
 mod tests {
     use super::{
         PeerConnectionInfo, SyncPairingInfo, bind_peer_endpoint, connect_to_peer,
-        load_or_create_peer_secret,
+        create_short_pairing_code, load_or_create_peer_secret,
     };
 
     #[test]
@@ -330,5 +461,19 @@ mod tests {
             .expect("The complete pairing code should decode");
 
         assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn creates_typeable_short_pairing_code() {
+        let code = create_short_pairing_code();
+
+        assert_eq!(code.len(), 9);
+        assert_eq!(&code[4..5], "-");
+
+        for character in code.chars() {
+            assert!(
+                character == '-' || character.is_ascii_uppercase() || character.is_ascii_digit()
+            );
+        }
     }
 }
