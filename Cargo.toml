@@ -4,6 +4,11 @@ version = "0.1.4"
 authors = ["enotan <uminekolover99@gmail.com>"]
 edition = "2024"
 
+[workspace]
+members = ["kakera-node"]
+default-members = ["."]
+resolver = "3"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
