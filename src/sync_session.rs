@@ -34,6 +34,92 @@ pub struct ReceivedPeerSnapshot {
     pub downloaded_blob_count: usize,
 }
 
+///describes how two devices' newest snapshot histories relate
+#[derive(Debug, Clone, PartialEq)]
+pub enum SnapshotHistoryRelation {
+    Identical,
+    LocalAhead,
+    RemoteAhead,
+    Diverged,
+}
+
+fn snapshot_descends_from(
+    inventory: &[SnapshotDescriptor],
+    descendant_id: String,
+    ancestor_id: String,
+) -> bool {
+    if descendant_id == ancestor_id {
+        return true;
+    }
+
+    let mut current_id = descendant_id;
+
+    for _ in 0..inventory.len() {
+        let current_snapshot = inventory
+            .iter()
+            .find(|snapshot| snapshot.snapshot_id == current_id);
+
+        let Some(snapshot) = current_snapshot else {
+            return false;
+        };
+
+        let Some(parent_id) = snapshot.parent_snapshot_id.clone() else {
+            return false;
+        };
+
+        if parent_id == ancestor_id {
+            return true;
+        }
+
+        current_id = parent_id;
+    }
+
+    false
+}
+
+///compares two newest-first snapshot inventories
+pub fn compare_snapshot_histories(
+    local: &[SnapshotDescriptor],
+    remote: &[SnapshotDescriptor],
+) -> SnapshotHistoryRelation {
+    let local_head = local.first();
+    let remote_head = remote.first();
+
+    match (local_head, remote_head) {
+        (None, None) => SnapshotHistoryRelation::Identical,
+        (Some(_), None) => SnapshotHistoryRelation::LocalAhead,
+        (None, Some(_)) => SnapshotHistoryRelation::RemoteAhead,
+
+        (Some(local_head), Some(remote_head))
+            if local_head.snapshot_id == remote_head.snapshot_id =>
+        {
+            SnapshotHistoryRelation::Identical
+        }
+
+        (Some(local_head), Some(remote_head))
+            if snapshot_descends_from(
+                local,
+                local_head.snapshot_id.clone(),
+                remote_head.snapshot_id.clone(),
+            ) =>
+        {
+            SnapshotHistoryRelation::LocalAhead
+        }
+
+        (Some(local_head), Some(remote_head))
+            if snapshot_descends_from(
+                remote,
+                remote_head.snapshot_id.clone(),
+                local_head.snapshot_id.clone(),
+            ) =>
+        {
+            SnapshotHistoryRelation::RemoteAhead
+        }
+
+        (Some(_), Some(_)) => SnapshotHistoryRelation::Diverged,
+    }
+}
+
 ///validate a blob request and prepare its control response
 pub fn prepare_blob_response(
     request: SyncMessage,
@@ -557,10 +643,13 @@ pub fn build_manifest_response(request: SyncMessage, kakera_data_dir: PathBuf) -
 
 #[cfg(test)]
 mod tests {
-    use super::{build_inventory_response, build_manifest_response, prepare_blob_response};
+    use super::{
+        SnapshotHistoryRelation, build_inventory_response, build_manifest_response,
+        compare_snapshot_histories, prepare_blob_response,
+    };
     use crate::{
         models::new_save_sync_id,
-        sync_protocol::{SyncMessage, SyncProtocolErrorCode},
+        sync_protocol::{SnapshotDescriptor, SyncMessage, SyncProtocolErrorCode},
     };
 
     #[test]
@@ -669,5 +758,63 @@ mod tests {
                 message: "The blob request is invalid".to_string(),
             })
         );
+    }
+
+    #[test]
+    fn identifies_matching_snapshot_histories() {
+        let snapshot = descriptor("snapshot-one".to_string(), None);
+
+        let relation = compare_snapshot_histories(&[snapshot.clone()], &[snapshot]);
+
+        assert_eq!(relation, SnapshotHistoryRelation::Identical);
+    }
+
+    #[test]
+    fn identifies_local_history_as_ahead() {
+        let first = descriptor("snapshot-one".to_string(), None);
+        let second = descriptor("snapshot-two".to_string(), Some("snapshot-one".to_string()));
+
+        let relation = compare_snapshot_histories(&[second, first.clone()], &[first]);
+
+        assert_eq!(relation, SnapshotHistoryRelation::LocalAhead);
+    }
+
+    #[test]
+    fn identifies_remote_history_as_ahead() {
+        let first = descriptor("snapshot-one".to_string(), None);
+        let second = descriptor("snapshot-two".to_string(), Some("snapshot-one".to_string()));
+
+        let relation = compare_snapshot_histories(&[first.clone()], &[second, first]);
+
+        assert_eq!(relation, SnapshotHistoryRelation::RemoteAhead);
+    }
+
+    #[test]
+    fn identifies_diverged_snapshot_histories() {
+        let common = descriptor("snapshot-common".to_string(), None);
+
+        let local = descriptor(
+            "snapshot-local".to_string(),
+            Some("snapshot-common".to_string()),
+        );
+
+        let remote = descriptor(
+            "snapshot-remote".to_string(),
+            Some("snapshot-common".to_string()),
+        );
+
+        let relation = compare_snapshot_histories(&[local, common.clone()], &[remote, common]);
+
+        assert_eq!(relation, SnapshotHistoryRelation::Diverged);
+    }
+
+    fn descriptor(snapshot_id: String, parent_snapshot_id: Option<String>) -> SnapshotDescriptor {
+        SnapshotDescriptor {
+            snapshot_id,
+            parent_snapshot_id,
+            device_id: "test-device".to_string(),
+            created_at: "2026-09-15T12:00:00Z".to_string(),
+            file_count: 1,
+        }
     }
 }
