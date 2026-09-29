@@ -3615,6 +3615,8 @@ dependencies = [
  "axum",
  "blake3",
  "dirs 7.0.0",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

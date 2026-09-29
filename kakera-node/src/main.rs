@@ -5,7 +5,7 @@ mod storage;
 
 use axum::{Router, extract::DefaultBodyLimit, routing::get};
 use config::NodeConfig;
-use storage::{AppState, get_blob, put_blob};
+use storage::{AppState, get_blob, get_manifest, put_blob, put_manifest};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -19,6 +19,10 @@ async fn main() -> std::io::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/blobs/{hash}", get(get_blob).put(put_blob))
+        .route(
+            "/v1/vns/{vn_sync_id}/snapshots/{snapshot_id}",
+            get(get_manifest).put(put_manifest),
+        )
         .layer(DefaultBodyLimit::max(512 * 1024 * 1024))
         .with_state(state);
     let listener = TcpListener::bind(&config.address).await?;
